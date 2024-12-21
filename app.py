@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import os
 
-# Correct CSV file path
-FILE_NAME = "/mnt/data/clients.csv"
+# CSV file name
+FILE_NAME = "clients.csv"
 
 # Function to load client data from a CSV file
 def load_clients_from_csv(file_name=FILE_NAME):
@@ -15,16 +16,37 @@ def load_clients_from_csv(file_name=FILE_NAME):
         )
         return df.to_dict(orient="index")
     except FileNotFoundError:
+        st.info(f"No existing {file_name} found. A new one will be created.")
+        return {}
+    except Exception as e:
+        st.error(f"Error loading CSV: {str(e)}")
         return {}
 
 # Function to save client data to a CSV file
 def save_clients_to_csv(clients, file_name=FILE_NAME):
-    clients_copy = {
-        client: {**data, 'booked_sessions': str(data['booked_sessions'])}
-        for client, data in clients.items()
-    }
-    df = pd.DataFrame.from_dict(clients_copy, orient="index")
-    df.to_csv(file_name)
+    try:
+        # Create a copy of the clients dictionary to avoid modifying the original
+        clients_copy = {
+            client: {**data, 'booked_sessions': str(data['booked_sessions'])}
+            for client, data in clients.items()
+        }
+        
+        # Convert to DataFrame and save
+        df = pd.DataFrame.from_dict(clients_copy, orient="index")
+        
+        # Save with index
+        df.to_csv(file_name)
+        
+        # Verify the file was created
+        if os.path.exists(file_name):
+            st.info(f"Data saved successfully to {file_name}")
+            # Display current contents for debugging
+            st.write("Current clients in CSV:", df.index.tolist())
+        else:
+            st.error(f"File {file_name} was not created")
+            
+    except Exception as e:
+        st.error(f"Error saving to CSV: {str(e)}")
 
 # Initialize clients in session state
 if "clients" not in st.session_state:
@@ -48,7 +70,7 @@ with st.form("client_form"):
 if submit_button:
     if name not in st.session_state.clients:
         st.session_state.clients[name] = {
-            "email": email if email else "N/A",
+            "email": email,
             "sessions_completed": 0,
             "sessions_remaining": sessions_booked,
             "total_sessions": sessions_booked,
@@ -69,11 +91,14 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {data['sessions_completed']}")
         st.write(f"Sessions Remaining: {data['sessions_remaining']}")
 
+        # Display booked sessions with updated message
         booked_sessions = data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
         if booked_sessions:
+            # Sort sessions by date
             booked_sessions.sort()
             for session in booked_sessions:
+                # Format the date for display
                 try:
                     session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
                     st.write(f"- {session_date}")
@@ -100,7 +125,7 @@ if st.session_state.clients:
                 save_clients_to_csv(st.session_state.clients)
                 st.success(f"Session booked for {selected_client} on {booking_date.strftime('%B %d, %Y')}")
             else:
-                st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')}")
+                st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')}.")
 else:
     st.info("No clients available. Please add clients first.")
 
@@ -108,7 +133,11 @@ else:
 st.header("Update Client Sessions")
 
 if st.session_state.clients:
-    update_client = st.selectbox("Select Client to Update", st.session_state.clients.keys())
+    update_client = st.selectbox(
+        "Select Client to Update",
+        st.session_state.clients.keys(),
+        key="update_client"
+    )
 
     if update_client:
         client_data = st.session_state.clients[update_client]
@@ -116,9 +145,11 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {client_data['sessions_completed']}")
         st.write(f"Sessions Remaining: {client_data['sessions_remaining']}")
 
+        # Display upcoming sessions with proper date formatting
         booked_sessions = client_data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
         if booked_sessions:
+            # Sort sessions by date
             booked_sessions.sort()
             for session in booked_sessions:
                 try:
@@ -132,18 +163,31 @@ if st.session_state.clients:
         if st.button("Mark Session as Completed"):
             if client_data['sessions_remaining'] > 0:
                 if booked_sessions:
+                    # Remove the earliest booked session
                     completed_date = booked_sessions.pop(0)
                     try:
                         display_date = datetime.strptime(completed_date, '%Y-%m-%d').strftime('%B %d, %Y')
                     except ValueError:
                         display_date = completed_date
-
+                    
+                    # Update session counts
                     client_data["sessions_completed"] += 1
                     client_data["sessions_remaining"] -= 1
-
+                    
+                    # Save updates
                     save_clients_to_csv(st.session_state.clients)
                     st.success(f"Session on {display_date} marked as completed!")
                 else:
                     st.info("No booked sessions to mark as completed.")
             else:
                 st.warning(f"{update_client} has no remaining sessions.")
+
+# Payment Reminder Section
+st.header("Payment Reminders")
+
+if st.session_state.clients:
+    for client, data in st.session_state.clients.items():
+        if data["sessions_remaining"] == 0:
+            st.warning(f"Payment Reminder: {client} has completed all sessions. Please request payment.")
+else:
+    st.info("No clients to check for payment reminders.")
