@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# CSV file name
-FILE_NAME = "clients.csv"
+# Correct CSV file path
+FILE_NAME = "/mnt/data/clients.csv"
 
 # Function to load client data from a CSV file
 def load_clients_from_csv(file_name=FILE_NAME):
@@ -19,7 +19,6 @@ def load_clients_from_csv(file_name=FILE_NAME):
 
 # Function to save client data to a CSV file
 def save_clients_to_csv(clients, file_name=FILE_NAME):
-    # Create a copy of the clients dictionary to avoid modifying the original
     clients_copy = {
         client: {**data, 'booked_sessions': str(data['booked_sessions'])}
         for client, data in clients.items()
@@ -49,7 +48,7 @@ with st.form("client_form"):
 if submit_button:
     if name not in st.session_state.clients:
         st.session_state.clients[name] = {
-            "email": email,
+            "email": email if email else "N/A",
             "sessions_completed": 0,
             "sessions_remaining": sessions_booked,
             "total_sessions": sessions_booked,
@@ -70,14 +69,11 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {data['sessions_completed']}")
         st.write(f"Sessions Remaining: {data['sessions_remaining']}")
 
-        # Display booked sessions with updated message
         booked_sessions = data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
         if booked_sessions:
-            # Sort sessions by date
             booked_sessions.sort()
             for session in booked_sessions:
-                # Format the date for display
                 try:
                     session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
                     st.write(f"- {session_date}")
@@ -104,7 +100,7 @@ if st.session_state.clients:
                 save_clients_to_csv(st.session_state.clients)
                 st.success(f"Session booked for {selected_client} on {booking_date.strftime('%B %d, %Y')}")
             else:
-                st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')}.")
+                st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')}")
 else:
     st.info("No clients available. Please add clients first.")
 
@@ -112,11 +108,7 @@ else:
 st.header("Update Client Sessions")
 
 if st.session_state.clients:
-    update_client = st.selectbox(
-        "Select Client to Update",
-        st.session_state.clients.keys(),
-        key="update_client"
-    )
+    update_client = st.selectbox("Select Client to Update", st.session_state.clients.keys())
 
     if update_client:
         client_data = st.session_state.clients[update_client]
@@ -124,11 +116,9 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {client_data['sessions_completed']}")
         st.write(f"Sessions Remaining: {client_data['sessions_remaining']}")
 
-        # Display upcoming sessions with proper date formatting
         booked_sessions = client_data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
         if booked_sessions:
-            # Sort sessions by date
             booked_sessions.sort()
             for session in booked_sessions:
                 try:
@@ -142,31 +132,18 @@ if st.session_state.clients:
         if st.button("Mark Session as Completed"):
             if client_data['sessions_remaining'] > 0:
                 if booked_sessions:
-                    # Remove the earliest booked session
                     completed_date = booked_sessions.pop(0)
                     try:
                         display_date = datetime.strptime(completed_date, '%Y-%m-%d').strftime('%B %d, %Y')
                     except ValueError:
                         display_date = completed_date
-                    
-                    # Update session counts
+
                     client_data["sessions_completed"] += 1
                     client_data["sessions_remaining"] -= 1
-                    
-                    # Save updates
+
                     save_clients_to_csv(st.session_state.clients)
                     st.success(f"Session on {display_date} marked as completed!")
                 else:
                     st.info("No booked sessions to mark as completed.")
             else:
                 st.warning(f"{update_client} has no remaining sessions.")
-
-# Payment Reminder Section
-st.header("Payment Reminders")
-
-if st.session_state.clients:
-    for client, data in st.session_state.clients.items():
-        if data["sessions_remaining"] == 0:
-            st.warning(f"Payment Reminder: {client} has completed all sessions. Please request payment.")
-else:
-    st.info("No clients to check for payment reminders.")
