@@ -107,8 +107,10 @@ if st.session_state.clients:
         st.write(f"Client: {selected_client}")
         st.write(f"Sessions Completed: {st.session_state.clients[selected_client]['sessions_completed']}")
         st.write(f"Sessions Remaining: {st.session_state.clients[selected_client]['sessions_remaining']}")
-        upcoming_sessions = st.session_state.clients[selected_client]["booked_sessions"]
+        # Safely fetch 'booked_sessions' and handle missing key or None
+        upcoming_sessions = st.session_state.clients[selected_client].get("booked_sessions", [])
 
+        # Handle empty or missing sessions
         if not upcoming_sessions:
             st.write("Upcoming Booked Sessions: No upcoming sessions. Start booking now!")
         else:
