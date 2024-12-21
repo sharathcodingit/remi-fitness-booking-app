@@ -110,28 +110,31 @@ if st.session_state.clients:
         st.write(f"Upcoming Booked Sessions: {st.session_state.clients[selected_client]['booked_sessions']}")
 
         if st.button("Mark Session as Completed"):
-            if st.session_state.clients[selected_client]['sessions_remaining'] > 0:
-                if st.session_state.clients[selected_client]["booked_sessions"]:
-                    # Ensure "booked_sessions" is a list, not a string
-if isinstance(st.session_state.clients[selected_client]["booked_sessions"], str):
-    # Convert it to a list (assuming it was stored as a comma-separated string)
-    st.session_state.clients[selected_client]["booked_sessions"] = st.session_state.clients[selected_client]["booked_sessions"].split(",")
+    if st.session_state.clients[selected_client]['sessions_remaining'] > 0:
+        if st.session_state.clients[selected_client]["booked_sessions"]:
+            # Ensure "booked_sessions" is a list, not a string
+            if isinstance(st.session_state.clients[selected_client]["booked_sessions"], str):
+                # Convert it to a list (assuming it was stored as a comma-separated string)
+                st.session_state.clients[selected_client]["booked_sessions"] = st.session_state.clients[selected_client]["booked_sessions"].split(",")
 
-# Safely pop the first session
-if st.session_state.clients[selected_client]["booked_sessions"]:
-    completed_date = st.session_state.clients[selected_client]["booked_sessions"].pop(0)
-    st.success(f"Session on {completed_date} marked as completed!")
-else:
-    st.info("No booked sessions to mark as completed.")
-                else:
-                    st.info("No booked sessions to mark as completed.")
+            # Safely pop the first session
+            if st.session_state.clients[selected_client]["booked_sessions"]:
+                completed_date = st.session_state.clients[selected_client]["booked_sessions"].pop(0)
+                st.success(f"Session on {completed_date} marked as completed!")
+
+                # **Update counters only here**
                 st.session_state.clients[selected_client]["sessions_completed"] += 1
                 st.session_state.clients[selected_client]["sessions_remaining"] -= 1
+
+                # Save updates
                 save_clients_to_csv(st.session_state.clients)
+
             else:
-                st.warning(f"{selected_client} has no remaining sessions.")
-else:
-    st.info("No clients available to update.")
+                st.info("No booked sessions to mark as completed.")
+        else:
+            st.warning(f"{selected_client} has no remaining sessions.")
+    else:
+        st.info("No clients available to update.")
 
 # Payment Reminder Section
 st.header("Payment Reminders")
