@@ -70,10 +70,10 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {data['sessions_completed']}")
         st.write(f"Sessions Remaining: {data['sessions_remaining']}")
 
-        # Display booked sessions
+        # Display booked sessions with updated message
         booked_sessions = data.get("booked_sessions", [])
+        st.write("Upcoming Booked Sessions:")
         if booked_sessions:
-            st.write("Booked Sessions:")
             # Sort sessions by date
             booked_sessions.sort()
             for session in booked_sessions:
@@ -84,7 +84,7 @@ if st.session_state.clients:
                 except ValueError:
                     st.write(f"- {session}")
         else:
-            st.write("No sessions booked.")
+            st.write("No upcoming sessions. Start booking now!")
         st.write("---")
 else:
     st.info("No clients available. Please add new clients.")
@@ -126,8 +126,8 @@ if st.session_state.clients:
 
         # Display upcoming sessions with proper date formatting
         booked_sessions = client_data.get("booked_sessions", [])
+        st.write("Upcoming Booked Sessions:")
         if booked_sessions:
-            st.write("Upcoming Booked Sessions:")
             # Sort sessions by date
             booked_sessions.sort()
             for session in booked_sessions:
