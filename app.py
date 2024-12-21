@@ -110,7 +110,7 @@ if st.session_state.clients:
         upcoming_sessions = st.session_state.clients[selected_client]["booked_sessions"]
 
         if not upcoming_sessions:
-            st.write("Upcoming Booked Sessions: No upcoming sessions booked.")
+            st.write("Upcoming Booked Sessions: No upcoming sessions. Start booking now!")
         else:
             st.write(f"Upcoming Booked Sessions: {upcoming_sessions}")
 
