@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
 
 # CSV file name
 FILE_NAME = "clients.csv"
@@ -31,42 +30,13 @@ def save_clients_to_csv(clients, file_name=FILE_NAME):
             for client, data in clients.items()
         }
         
-        # Convert to DataFrame
+        # Convert to DataFrame and save
         df = pd.DataFrame.from_dict(clients_copy, orient="index")
-        
-        # Save CSV with index
         df.to_csv(file_name)
         print(f"Saved {len(clients)} clients to {file_name}")  # Debug print
     except Exception as e:
         st.error(f"Error saving to CSV: {str(e)}")
         print(f"Error saving CSV: {str(e)}")  # Debug print
-
-# In the client onboarding section, modify the submit button handler:
-if submit_button:
-    if name and email:  # Make sure both name and email are provided
-        if name not in st.session_state.clients:
-            # Add new client
-            st.session_state.clients[name] = {
-                "email": email,
-                "sessions_completed": 0,
-                "sessions_remaining": sessions_booked,
-                "total_sessions": sessions_booked,
-                "booked_sessions": [],
-            }
-            
-            # Save immediately after adding
-            try:
-                save_clients_to_csv(st.session_state.clients)
-                st.success(f"Client {name} added successfully!")
-                
-                # Debug information
-                st.write("Current clients:", list(st.session_state.clients.keys()))
-            except Exception as e:
-                st.error(f"Failed to save client data: {str(e)}")
-        else:
-            st.warning(f"Client {name} already exists!")
-    else:
-        st.warning("Please provide both name and email")
 
 # Initialize clients in session state
 if "clients" not in st.session_state:
@@ -81,25 +51,38 @@ st.write("Welcome! Use this app to manage client sessions, bookings, and payment
 # Client Onboarding Section
 st.header("Add a New Client")
 
-with st.form("client_form"):
+# Create form
+with st.form(key="client_form"):
     name = st.text_input("Client Name")
     email = st.text_input("Email Address")
     sessions_booked = st.number_input("Number of Sessions Booked", min_value=0, value=12)
     submit_button = st.form_submit_button("Add Client")
 
-if submit_button:
-    if name not in st.session_state.clients:
-        st.session_state.clients[name] = {
-            "email": email,
-            "sessions_completed": 0,
-            "sessions_remaining": sessions_booked,
-            "total_sessions": sessions_booked,
-            "booked_sessions": [],
-        }
-        save_clients_to_csv(st.session_state.clients)
-        st.success(f"Client {name} added successfully!")
-    else:
-        st.warning(f"Client {name} already exists!")
+    if submit_button:
+        if name and email:  # Make sure both name and email are provided
+            if name not in st.session_state.clients:
+                # Add new client
+                st.session_state.clients[name] = {
+                    "email": email,
+                    "sessions_completed": 0,
+                    "sessions_remaining": sessions_booked,
+                    "total_sessions": sessions_booked,
+                    "booked_sessions": [],
+                }
+                
+                # Save immediately after adding
+                try:
+                    save_clients_to_csv(st.session_state.clients)
+                    st.success(f"Client {name} added successfully!")
+                    
+                    # Debug information
+                    st.write("Current clients:", list(st.session_state.clients.keys()))
+                except Exception as e:
+                    st.error(f"Failed to save client data: {str(e)}")
+            else:
+                st.warning(f"Client {name} already exists!")
+        else:
+            st.warning("Please provide both name and email")
 
 # Session Tracking Section
 st.header("Track Sessions")
