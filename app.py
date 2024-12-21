@@ -112,8 +112,17 @@ if st.session_state.clients:
         if st.button("Mark Session as Completed"):
             if st.session_state.clients[selected_client]['sessions_remaining'] > 0:
                 if st.session_state.clients[selected_client]["booked_sessions"]:
-                    completed_date = st.session_state.clients[selected_client]["booked_sessions"].pop(0)
-                    st.success(f"Session on {completed_date} marked as completed!")
+                    # Ensure "booked_sessions" is a list, not a string
+if isinstance(st.session_state.clients[selected_client]["booked_sessions"], str):
+    # Convert it to a list (assuming it was stored as a comma-separated string)
+    st.session_state.clients[selected_client]["booked_sessions"] = st.session_state.clients[selected_client]["booked_sessions"].split(",")
+
+# Safely pop the first session
+if st.session_state.clients[selected_client]["booked_sessions"]:
+    completed_date = st.session_state.clients[selected_client]["booked_sessions"].pop(0)
+    st.success(f"Session on {completed_date} marked as completed!")
+else:
+    st.info("No booked sessions to mark as completed.")
                 else:
                     st.info("No booked sessions to mark as completed.")
                 st.session_state.clients[selected_client]["sessions_completed"] += 1
