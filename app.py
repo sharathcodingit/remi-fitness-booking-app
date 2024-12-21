@@ -25,28 +25,48 @@ def load_clients_from_csv(file_name=FILE_NAME):
 # Function to save client data to a CSV file
 def save_clients_to_csv(clients, file_name=FILE_NAME):
     try:
-        # Create a copy of the clients dictionary to avoid modifying the original
+        # Create a copy of the clients dictionary
         clients_copy = {
             client: {**data, 'booked_sessions': str(data['booked_sessions'])}
             for client, data in clients.items()
         }
         
-        # Convert to DataFrame and save
+        # Convert to DataFrame
         df = pd.DataFrame.from_dict(clients_copy, orient="index")
         
-        # Save with index
+        # Save CSV with index
         df.to_csv(file_name)
-        
-        # Verify the file was created
-        if os.path.exists(file_name):
-            st.info(f"Data saved successfully to {file_name}")
-            # Display current contents for debugging
-            st.write("Current clients in CSV:", df.index.tolist())
-        else:
-            st.error(f"File {file_name} was not created")
-            
+        print(f"Saved {len(clients)} clients to {file_name}")  # Debug print
     except Exception as e:
         st.error(f"Error saving to CSV: {str(e)}")
+        print(f"Error saving CSV: {str(e)}")  # Debug print
+
+# In the client onboarding section, modify the submit button handler:
+if submit_button:
+    if name and email:  # Make sure both name and email are provided
+        if name not in st.session_state.clients:
+            # Add new client
+            st.session_state.clients[name] = {
+                "email": email,
+                "sessions_completed": 0,
+                "sessions_remaining": sessions_booked,
+                "total_sessions": sessions_booked,
+                "booked_sessions": [],
+            }
+            
+            # Save immediately after adding
+            try:
+                save_clients_to_csv(st.session_state.clients)
+                st.success(f"Client {name} added successfully!")
+                
+                # Debug information
+                st.write("Current clients:", list(st.session_state.clients.keys()))
+            except Exception as e:
+                st.error(f"Failed to save client data: {str(e)}")
+        else:
+            st.warning(f"Client {name} already exists!")
+    else:
+        st.warning("Please provide both name and email")
 
 # Initialize clients in session state
 if "clients" not in st.session_state:
