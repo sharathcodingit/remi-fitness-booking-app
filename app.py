@@ -270,4 +270,8 @@ if st.button("Sync with GitHub"):
     if sync_with_github():
         st.success("Successfully synced with GitHub!")
     else:
+<<<<<<< HEAD
         st.error("Failed to sync with GitHub. Check the logs for details.")
+=======
+        st.error("Failed to sync with GitHub. Check the logs for details.")
+>>>>>>> 7d19b1f291a0a21d94b96521fc6c6c2b373718ae
