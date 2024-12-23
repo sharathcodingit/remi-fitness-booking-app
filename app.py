@@ -21,20 +21,24 @@ def sync_with_github(commit_message="Updated client data"):
             repo.git.remote('set-url', 'origin', remote_url)
             
             # Add changes
-            repo.git.add('clients.csv')
+            repo.git.add(FILE_NAME)
             
             # Only commit if there are changes
             if repo.is_dirty() or len(repo.untracked_files) > 0:
                 repo.index.commit(commit_message)
                 
-                # Pull latest changes
-                repo.git.pull('origin', 'main', '--no-rebase')
-                
-                # Push changes
-                repo.git.push('origin', 'main')
-                
-                print("GitHub sync completed successfully")
-                return True
+                try:
+                    # Pull latest changes
+                    repo.git.pull('origin', 'main', '--no-rebase')
+                    
+                    # Push changes
+                    repo.git.push('origin', 'main')
+                    
+                    print("GitHub sync completed successfully")
+                    return True
+                except Exception as e:
+                    print(f"Error during pull/push: {str(e)}")
+                    return False
             return True
         else:
             print("SECRET_TOKEN not found in Streamlit secrets")
@@ -49,11 +53,18 @@ def load_clients_from_csv(file_name=FILE_NAME):
     try:
         if os.path.exists(file_name):
             df = pd.read_csv(file_name)
-            # Convert 'booked_sessions' from string to list
-            df["booked_sessions"] = df["booked_sessions"].apply(
-                lambda x: eval(x) if pd.notna(x) and x != '[]' else []
-            )
-            return {row['client_name']: row.dropna().to_dict() for _, row in df.iterrows()}
+            clients_dict = {}
+            
+            for _, row in df.iterrows():
+                client_name = row['client_name']
+                clients_dict[client_name] = {
+                    'email': row['email'],
+                    'sessions_completed': row['sessions_completed'],
+                    'sessions_remaining': row['sessions_remaining'],
+                    'total_sessions': row['total_sessions'],
+                    'booked_sessions': eval(row['booked_sessions']) if pd.notna(row['booked_sessions']) and row['booked_sessions'] != '[]' else []
+                }
+            return clients_dict
     except Exception as e:
         print(f"Error loading CSV: {str(e)}")
     return {}
@@ -71,10 +82,17 @@ def save_clients_to_csv(clients, file_name=FILE_NAME):
         df = pd.DataFrame.from_dict(clients_copy, orient='index')
         df.reset_index(inplace=True)
         df.rename(columns={'index': 'client_name'}, inplace=True)
+        
+        # Ensure consistent column order
+        columns = ['client_name', 'email', 'sessions_completed', 'sessions_remaining', 
+                  'total_sessions', 'booked_sessions']
+        df = df[columns]
+        
         df.to_csv(file_name, index=False)
         
         # Sync with GitHub
-        if sync_with_github():
+        sync_success = sync_with_github()
+        if sync_success:
             st.success("Changes saved and synced successfully!")
         else:
             st.warning("Changes saved locally but GitHub sync failed.")
@@ -123,26 +141,28 @@ with st.form(key="client_form"):
 st.header("Track Sessions")
 
 if st.session_state.clients:
-    for client, data in st.session_state.clients.items():
-        st.write(f"Client: {client}")
-        st.write(f"Email: {data.get('email', 'N/A')}")
-        st.write(f"Sessions Completed: {data['sessions_completed']}")
-        st.write(f"Sessions Remaining: {data['sessions_remaining']}")
+    # Sort clients by name
+    sorted_clients = dict(sorted(st.session_state.clients.items()))
+    
+    for client, data in sorted_clients.items():
+        with st.expander(f"Client: {client}"):
+            st.write(f"Email: {data['email']}")
+            st.write(f"Sessions Completed: {data['sessions_completed']}")
+            st.write(f"Sessions Remaining: {data['sessions_remaining']}")
 
-        # Display booked sessions
-        booked_sessions = data.get("booked_sessions", [])
-        st.write("Upcoming Booked Sessions:")
-        if booked_sessions:
-            booked_sessions.sort()
-            for session in booked_sessions:
-                try:
-                    session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
-                    st.write(f"- {session_date}")
-                except ValueError:
-                    st.write(f"- {session}")
-        else:
-            st.write("No upcoming sessions. Start booking now!")
-        st.write("---")
+            # Display booked sessions
+            booked_sessions = data.get("booked_sessions", [])
+            st.write("Upcoming Booked Sessions:")
+            if booked_sessions:
+                booked_sessions.sort()
+                for session in booked_sessions:
+                    try:
+                        session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
+                        st.write(f"- {session_date}")
+                    except ValueError:
+                        st.write(f"- {session}")
+            else:
+                st.write("No upcoming sessions. Start booking now!")
 else:
     st.info("No clients available. Please add new clients.")
 
@@ -150,7 +170,9 @@ else:
 st.header("Session Booking")
 
 if st.session_state.clients:
-    selected_client = st.selectbox("Select Client for Booking", list(st.session_state.clients.keys()))
+    # Sort clients for the dropdown
+    sorted_client_names = sorted(st.session_state.clients.keys())
+    selected_client = st.selectbox("Select Client for Booking", sorted_client_names)
     booking_date = st.date_input("Select a Date for Booking")
 
     if st.button("Book Session"):
@@ -162,3 +184,65 @@ if st.session_state.clients:
                 st.success(f"Session booked for {selected_client} on {booking_date.strftime('%B %d, %Y')}")
             else:
                 st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')}.")
+else:
+    st.info("No clients available. Please add clients first.")
+
+# Update Sessions for a Specific Client
+st.header("Update Client Sessions")
+
+if st.session_state.clients:
+    # Sort clients for the dropdown
+    sorted_client_names = sorted(st.session_state.clients.keys())
+    update_client = st.selectbox(
+        "Select Client to Update",
+        sorted_client_names,
+        key="update_client"
+    )
+
+    if update_client:
+        client_data = st.session_state.clients[update_client]
+        st.write(f"Client: {update_client}")
+        st.write(f"Sessions Completed: {client_data['sessions_completed']}")
+        st.write(f"Sessions Remaining: {client_data['sessions_remaining']}")
+
+        # Display upcoming sessions
+        booked_sessions = client_data.get("booked_sessions", [])
+        st.write("Upcoming Booked Sessions:")
+        if booked_sessions:
+            booked_sessions.sort()
+            for session in booked_sessions:
+                try:
+                    session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
+                    st.write(f"- {session_date}")
+                except ValueError:
+                    st.write(f"- {session}")
+        else:
+            st.write("No upcoming sessions. Start booking now!")
+
+        if st.button("Mark Session as Completed"):
+            if client_data['sessions_remaining'] > 0:
+                if booked_sessions:
+                    completed_date = booked_sessions.pop(0)
+                    client_data["sessions_completed"] += 1
+                    client_data["sessions_remaining"] -= 1
+                    save_clients_to_csv(st.session_state.clients)
+                    st.success(f"Session marked as completed!")
+                else:
+                    st.info("No booked sessions to mark as completed.")
+            else:
+                st.warning(f"{update_client} has no remaining sessions.")
+
+# Payment Reminder Section
+st.header("Payment Reminders")
+
+if st.session_state.clients:
+    has_reminders = False
+    for client, data in sorted(st.session_state.clients.items()):
+        if data["sessions_remaining"] == 0:
+            has_reminders = True
+            st.warning(f"Payment Reminder: {client} has completed all sessions. Please request payment.")
+    
+    if not has_reminders:
+        st.success("No payment reminders needed at this time.")
+else:
+    st.info("No clients to check for payment reminders.")
