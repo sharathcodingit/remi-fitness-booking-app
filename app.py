@@ -16,33 +16,41 @@ def sync_with_github(commit_message="Updated client data"):
             token = st.secrets['SECRET_TOKEN']
             repo = Repo(REPO_PATH)
             
-            # Configure the remote URL with the token
-            remote_url = f'https://{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
-            repo.git.remote('set-url', 'origin', remote_url)
-            
-            # Add changes
-            repo.git.add(FILE_NAME)
-            
-            # Only commit if there are changes
-            if repo.is_dirty() or len(repo.untracked_files) > 0:
-                repo.index.commit(commit_message)
+            try:
+                # Configure the remote URL with the token
+                remote_url = f'https://{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
+                repo.git.remote('set-url', 'origin', remote_url)
                 
-                try:
-                    # Pull latest changes
-                    repo.git.pull('origin', 'main', '--no-rebase')
+                # Force add the CSV file
+                repo.git.add('--force', FILE_NAME)
+                
+                # Check if there are changes to commit
+                if repo.is_dirty(untracked_files=True):
+                    # Create commit
+                    repo.index.commit(commit_message)
                     
-                    # Push changes
-                    repo.git.push('origin', 'main')
+                    # Pull with rebase to avoid merge commits
+                    repo.git.pull('--rebase', 'origin', 'main')
+                    
+                    # Force push changes
+                    repo.git.push('--force-with-lease', 'origin', 'main')
                     
                     print("GitHub sync completed successfully")
                     return True
-                except Exception as e:
-                    print(f"Error during pull/push: {str(e)}")
-                    return False
-            return True
+                else:
+                    print("No changes to commit")
+                    return True
+                    
+            except Exception as e:
+                print(f"Git operation error: {str(e)}")
+                # Try to reset any partial changes
+                repo.git.reset('--hard')
+                return False
+                
         else:
             print("SECRET_TOKEN not found in Streamlit secrets")
             return False
+            
     except Exception as e:
         print(f"GitHub sync error: {str(e)}")
         print(traceback.format_exc())
@@ -88,18 +96,35 @@ def save_clients_to_csv(clients, file_name=FILE_NAME):
                   'total_sessions', 'booked_sessions']
         df = df[columns]
         
-        df.to_csv(file_name, index=False)
+        # Save to a temporary file first
+        temp_file = file_name + '.tmp'
+        df.to_csv(temp_file, index=False)
+        
+        # If save was successful, replace the original file
+        os.replace(temp_file, file_name)
         
         # Sync with GitHub
         sync_success = sync_with_github()
+        
+        # Retry sync once if it fails
+        if not sync_success:
+            print("First sync attempt failed, retrying...")
+            sync_success = sync_with_github()
+        
         if sync_success:
             st.success("Changes saved and synced successfully!")
         else:
-            st.warning("Changes saved locally but GitHub sync failed.")
+            st.warning("Changes saved locally but GitHub sync failed. Please commit manually.")
             
     except Exception as e:
         st.error(f"Error saving data: {str(e)}")
         print(f"Error details: {str(e)}")
+        # Try to remove temporary file if it exists
+        try:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+        except:
+            pass
 
 # Initialize clients in session state
 if "clients" not in st.session_state:
