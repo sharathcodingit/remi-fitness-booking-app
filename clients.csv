@@ -1,5 +1,1 @@
-client_name,Unnamed: 0,email,sessions_completed,sessions_remaining,total_sessions,booked_sessions
-0,Sharath,sharathtt4@gmail.com,12,0,12,"['2024-12-11', '2024-12-15', '2024-12-16', '2024-12-22']"
-1,Test 1,,2,10,12,[]
-2,Sharu_test,,0,12,12,[]
-Sharu 123,,ewe,0,12,12,[]
+client_name,email,sessions_completed,sessions_remaining,total_sessions,booked_sessions
