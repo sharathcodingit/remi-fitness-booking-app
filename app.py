@@ -7,13 +7,29 @@ import traceback
 
 # Constants
 FILE_NAME = "clients.csv"
+<<<<<<< HEAD
 REPO_PATH = os.path.dirname(os.path.abspath(__file__))
 
 def sync_with_github(commit_message="Updated client data"):
+=======
+REPO_PATH = "/mount/src/remi-fitness-booking-app"
+FULL_PATH = os.path.join(REPO_PATH, FILE_NAME)
+
+# Debug information
+print(f"Starting app with:")
+print(f"Repo path: {REPO_PATH}")
+print(f"CSV path: {FULL_PATH}")
+print(f"File exists: {os.path.exists(FULL_PATH)}")
+
+def sync_with_github():
+>>>>>>> 8d0b0ce6529053d7edc9cc08b3cd0a481810ba1c
     """Function to sync changes with GitHub"""
     try:
-        repo = Repo(REPO_PATH)
+        # Use the mounted directory path
+        repo_path = "/mount/src/remi-fitness-booking-app"
+        repo = Repo(repo_path)
         
+<<<<<<< HEAD
         # Configure git with token authentication
         if 'SECRET_TOKEN' in st.secrets:  # Changed from GITHUB_TOKEN to SECRET_TOKEN
             token = st.secrets['SECRET_TOKEN']
@@ -40,9 +56,40 @@ def sync_with_github(commit_message="Updated client data"):
             print("GitHub sync completed successfully")
             return True
         return True
+=======
+        print(f"Starting sync from {repo_path}")
+        
+        # Add specific file instead of all changes
+        print("Adding clients.csv to git")
+        repo.git.add('clients.csv')
+        
+        try:
+            # Check if there are changes to commit
+            if repo.is_dirty(path='clients.csv'):
+                print("Changes detected, committing")
+                repo.index.commit("Updated client data")
+                
+                print("Pulling latest changes")
+                repo.git.pull('origin', 'main', rebase=False)
+                
+                print("Pushing changes")
+                origin = repo.remote('origin')
+                origin.push()
+                
+                print("Sync completed successfully")
+                return True
+            else:
+                print("No changes to sync in clients.csv")
+                return True
+        except Exception as git_error:
+            print(f"Git operation error: {str(git_error)}")
+            return False
+            
+>>>>>>> 8d0b0ce6529053d7edc9cc08b3cd0a481810ba1c
     except Exception as e:
-        print(f"GitHub sync error: {str(e)}")
-        print(traceback.format_exc())
+        print(f"Sync error: {str(e)}")
+        print(f"Error type: {type(e)}")
+        print(f"Error trace: {traceback.format_exc()}")
         return False
 
 def load_clients_from_csv(file_name=FILE_NAME):
@@ -62,6 +109,11 @@ def load_clients_from_csv(file_name=FILE_NAME):
 def save_clients_to_csv(clients, file_name=FILE_NAME):
     """Function to save client data to CSV and sync with GitHub"""
     try:
+<<<<<<< HEAD
+=======
+        print(f"Starting save operation for {len(clients)} clients")
+        
+>>>>>>> 8d0b0ce6529053d7edc9cc08b3cd0a481810ba1c
         # Create a copy of the clients dictionary
         clients_copy = {}
         for name, data in clients.items():
@@ -72,6 +124,7 @@ def save_clients_to_csv(clients, file_name=FILE_NAME):
         df = pd.DataFrame.from_dict(clients_copy, orient='index')
         df.reset_index(inplace=True)
         df.rename(columns={'index': 'client_name'}, inplace=True)
+<<<<<<< HEAD
         df.to_csv(file_name, index=False)
         
         # Sync with GitHub
@@ -83,6 +136,37 @@ def save_clients_to_csv(clients, file_name=FILE_NAME):
     except Exception as e:
         st.error(f"Error saving data: {str(e)}")
         print(f"Error details: {str(e)}")
+=======
+        
+        # Get full path for saving
+        full_path = os.path.join("/mount/src/remi-fitness-booking-app", file_name)
+        print(f"Saving to: {full_path}")
+        
+        # Save CSV
+        df.to_csv(full_path, index=False)
+        
+        # Verify save
+        if os.path.exists(full_path):
+            print(f"Successfully saved {len(clients)} clients")
+            
+            # Attempt sync
+            if sync_with_github():
+                st.success("✅ Changes saved and synced with GitHub!")
+                return True
+            else:
+                st.warning("💾 Changes saved locally but GitHub sync failed.")
+                st.info("Click 'Manual Sync' below to retry syncing.")
+                return False
+        else:
+            st.error("❌ Failed to save changes!")
+            return False
+            
+    except Exception as e:
+        print(f"Save error: {str(e)}")
+        print(f"Error trace: {traceback.format_exc()}")
+        st.error(f"Error saving data: {str(e)}")
+        return False
+>>>>>>> 8d0b0ce6529053d7edc9cc08b3cd0a481810ba1c
 
 # Initialize clients in session state
 if "clients" not in st.session_state:
