@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -218,4 +217,3 @@ if st.session_state.clients:
             st.warning(f"Payment Reminder: {client} has completed all sessions. Please request payment.")
 else:
     st.info("No clients to check for payment reminders.")
-```
