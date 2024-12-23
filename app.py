@@ -57,24 +57,57 @@ def sync_with_github(commit_message="Updated client data"):
         return False
 
 def load_clients_from_csv(file_name=FILE_NAME):
-    """Function to load client data from CSV"""
+    """Function to load client data from CSV with robust error handling"""
     try:
         if os.path.exists(file_name):
-            df = pd.read_csv(file_name)
+            # Read CSV with all strings initially to prevent type errors
+            df = pd.read_csv(file_name, dtype=str)
             clients_dict = {}
             
+            required_columns = ['client_name', 'email', 'sessions_completed', 
+                              'sessions_remaining', 'total_sessions', 'booked_sessions']
+            
+            # Check if all required columns exist
+            if not all(col in df.columns for col in required_columns):
+                print(f"Missing required columns. Found columns: {df.columns.tolist()}")
+                return {}
+            
             for _, row in df.iterrows():
-                client_name = row['client_name']
-                clients_dict[client_name] = {
-                    'email': row['email'],
-                    'sessions_completed': row['sessions_completed'],
-                    'sessions_remaining': row['sessions_remaining'],
-                    'total_sessions': row['total_sessions'],
-                    'booked_sessions': eval(row['booked_sessions']) if pd.notna(row['booked_sessions']) and row['booked_sessions'] != '[]' else []
-                }
+                try:
+                    client_name = row['client_name'].strip()
+                    if not client_name:  # Skip empty client names
+                        continue
+                        
+                    # Convert numeric fields safely
+                    sessions_completed = int(float(row['sessions_completed'])) if pd.notna(row['sessions_completed']) else 0
+                    sessions_remaining = int(float(row['sessions_remaining'])) if pd.notna(row['sessions_remaining']) else 0
+                    total_sessions = int(float(row['total_sessions'])) if pd.notna(row['total_sessions']) else 0
+                    
+                    # Handle booked sessions safely
+                    try:
+                        booked_sessions = eval(row['booked_sessions']) if pd.notna(row['booked_sessions']) and row['booked_sessions'].strip() not in ('[]', '') else []
+                        if not isinstance(booked_sessions, list):
+                            booked_sessions = []
+                    except:
+                        booked_sessions = []
+                    
+                    clients_dict[client_name] = {
+                        'email': row['email'].strip() if pd.notna(row['email']) else '',
+                        'sessions_completed': sessions_completed,
+                        'sessions_remaining': sessions_remaining,
+                        'total_sessions': total_sessions,
+                        'booked_sessions': booked_sessions
+                    }
+                except Exception as row_error:
+                    print(f"Error processing row: {row}\nError: {str(row_error)}")
+                    continue
+                    
             return clients_dict
     except Exception as e:
         print(f"Error loading CSV: {str(e)}")
+        if 'df' in locals():
+            print(f"DataFrame head:\n{df.head()}")
+            print(f"DataFrame columns: {df.columns.tolist()}")
     return {}
 
 def save_clients_to_csv(clients, file_name=FILE_NAME):
@@ -166,28 +199,50 @@ with st.form(key="client_form"):
 st.header("Track Sessions")
 
 if st.session_state.clients:
-    # Sort clients by name
-    sorted_clients = dict(sorted(st.session_state.clients.items()))
-    
-    for client, data in sorted_clients.items():
-        with st.expander(f"Client: {client}"):
-            st.write(f"Email: {data['email']}")
-            st.write(f"Sessions Completed: {data['sessions_completed']}")
-            st.write(f"Sessions Remaining: {data['sessions_remaining']}")
+    try:
+        # Sort clients by name
+        sorted_clients = dict(sorted(st.session_state.clients.items()))
+        
+        for client, data in sorted_clients.items():
+            try:
+                with st.expander(f"Client: {client}"):
+                    # Handle each field with error checking
+                    email = data.get('email', 'N/A')
+                    sessions_completed = data.get('sessions_completed', 0)
+                    sessions_remaining = data.get('sessions_remaining', 0)
+                    
+                    st.write(f"Email: {email}")
+                    st.write(f"Sessions Completed: {sessions_completed}")
+                    st.write(f"Sessions Remaining: {sessions_remaining}")
 
-            # Display booked sessions
-            booked_sessions = data.get("booked_sessions", [])
-            st.write("Upcoming Booked Sessions:")
-            if booked_sessions:
-                booked_sessions.sort()
-                for session in booked_sessions:
-                    try:
-                        session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
-                        st.write(f"- {session_date}")
-                    except ValueError:
-                        st.write(f"- {session}")
-            else:
-                st.write("No upcoming sessions. Start booking now!")
+                    # Display booked sessions
+                    booked_sessions = data.get("booked_sessions", [])
+                    if not isinstance(booked_sessions, list):
+                        booked_sessions = []
+                        
+                    st.write("Upcoming Booked Sessions:")
+                    if booked_sessions:
+                        # Sort and validate dates
+                        valid_sessions = []
+                        for session in booked_sessions:
+                            try:
+                                datetime.strptime(session, '%Y-%m-%d')
+                                valid_sessions.append(session)
+                            except (ValueError, TypeError):
+                                print(f"Invalid date format for session: {session}")
+                                
+                        valid_sessions.sort()
+                        for session in valid_sessions:
+                            session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
+                            st.write(f"- {session_date}")
+                    else:
+                        st.write("No upcoming sessions. Start booking now!")
+            except Exception as client_error:
+                st.error(f"Error displaying client {client}: {str(client_error)}")
+                continue
+    except Exception as e:
+        st.error(f"Error in session tracking: {str(e)}")
+        print(f"Session tracking error details: {str(e)}")
 else:
     st.info("No clients available. Please add new clients.")
 
