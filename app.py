@@ -8,28 +8,37 @@ import traceback
 # Constants
 FILE_NAME = "clients.csv"
 REPO_PATH = os.path.dirname(os.path.abspath(__file__))
-FULL_PATH = os.path.join(REPO_PATH, FILE_NAME)
 
-# Debug information
-print(f"CSV file path: {FULL_PATH}")
-print(f"File exists: {os.path.exists(FULL_PATH)}")
-
-def sync_with_github():
+def sync_with_github(commit_message="Updated client data"):
     """Function to sync changes with GitHub"""
     try:
         repo = Repo(REPO_PATH)
         
-        # Add changes
-        repo.index.add(['clients.csv'])
+        # Configure git with token authentication
+        if 'SECRET_TOKEN' in st.secrets:  # Changed from GITHUB_TOKEN to SECRET_TOKEN
+            token = st.secrets['SECRET_TOKEN']
+            repo_url = repo.remotes.origin.url
+            if repo_url.startswith('https://'):
+                new_url = f'https://x-access-token:{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
+                repo.remotes.origin.set_url(new_url)
+
+        # Add and commit changes
+        repo.git.add('clients.csv')
         
-        # Commit changes
-        repo.index.commit("Updated client data via automated sync")
-        
-        # Push changes
-        origin = repo.remote('origin')
-        origin.push()
-        
-        print("GitHub sync completed successfully")
+        # Check if there are changes to commit
+        if repo.is_dirty() or len(repo.untracked_files) > 0:
+            # Commit changes
+            repo.index.commit(commit_message)
+            
+            # Pull first to avoid conflicts
+            repo.git.pull('origin', 'main', '--no-rebase')
+            
+            # Push changes
+            origin = repo.remote('origin')
+            origin.push()
+            
+            print("GitHub sync completed successfully")
+            return True
         return True
     except Exception as e:
         print(f"GitHub sync error: {str(e)}")
@@ -40,63 +49,40 @@ def load_clients_from_csv(file_name=FILE_NAME):
     """Function to load client data from CSV"""
     try:
         if os.path.exists(file_name):
-            print(f"Loading clients from {file_name}")
             df = pd.read_csv(file_name)
-            if 'client_name' in df.columns:
-                df.set_index('client_name', inplace=True)
-            
             # Convert 'booked_sessions' from string to list
             df["booked_sessions"] = df["booked_sessions"].apply(
                 lambda x: eval(x) if pd.notna(x) and x != '[]' else []
             )
-            data = df.to_dict(orient="index")
-            print(f"Loaded clients: {list(data.keys())}")
-            return data
-        else:
-            print(f"No existing {file_name} found. A new one will be created.")
-            return {}
+            return df.to_dict(orient="index")
     except Exception as e:
         print(f"Error loading CSV: {str(e)}")
-        print(traceback.format_exc())
-        return {}
+    return {}
 
 def save_clients_to_csv(clients, file_name=FILE_NAME):
     """Function to save client data to CSV and sync with GitHub"""
     try:
-        print(f"Saving clients to {file_name}")
-        print(f"Clients to save: {list(clients.keys())}")
-        
         # Create a copy of the clients dictionary
-        clients_copy = {
-            client: {**data, 'booked_sessions': str(data['booked_sessions'])}
-            for client, data in clients.items()
-        }
+        clients_copy = {}
+        for name, data in clients.items():
+            clients_copy[name] = data.copy()
+            clients_copy[name]['booked_sessions'] = str(data['booked_sessions'])
         
-        # Convert to DataFrame
-        df = pd.DataFrame.from_dict(clients_copy, orient="index")
+        # Create DataFrame and save
+        df = pd.DataFrame.from_dict(clients_copy, orient='index')
         df.reset_index(inplace=True)
         df.rename(columns={'index': 'client_name'}, inplace=True)
-        
-        # Save CSV
         df.to_csv(file_name, index=False)
         
-        # Verify save was successful
-        if os.path.exists(file_name):
-            saved_df = pd.read_csv(file_name)
-            print(f"Saved clients: {saved_df['client_name'].tolist()}")
-            
-            # Attempt GitHub sync
-            if sync_with_github():
-                st.success("Changes saved and synced with GitHub!")
-            else:
-                st.warning("Changes saved locally but GitHub sync failed.")
+        # Sync with GitHub
+        if sync_with_github():
+            st.success("Changes saved and synced successfully!")
         else:
-            st.error("Failed to create CSV file!")
+            st.warning("Changes saved locally but GitHub sync failed.")
             
     except Exception as e:
-        print(f"Error saving data: {str(e)}")
-        print(traceback.format_exc())
         st.error(f"Error saving data: {str(e)}")
+        print(f"Error details: {str(e)}")
 
 # Initialize clients in session state
 if "clients" not in st.session_state:
