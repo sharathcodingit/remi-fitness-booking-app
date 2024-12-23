@@ -12,33 +12,33 @@ REPO_PATH = os.path.dirname(os.path.abspath(__file__))
 def sync_with_github(commit_message="Updated client data"):
     """Function to sync changes with GitHub"""
     try:
-        repo = Repo(REPO_PATH)
-        
-        # Add changes
-        repo.git.add('clients.csv')
-        
-        # Only commit if there are changes
-        if repo.is_dirty() or len(repo.untracked_files) > 0:
-            repo.index.commit(commit_message)
+        if 'SECRET_TOKEN' in st.secrets:
+            token = st.secrets['SECRET_TOKEN']
+            repo = Repo(REPO_PATH)
             
-            # Configure git with token authentication
-            if 'SECRET_TOKEN' in st.secrets:
-                token = st.secrets['SECRET_TOKEN']
-                repo_url = repo.remotes.origin.url
-                if repo_url.startswith('https://'):
-                    new_url = f'https://x-access-token:{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
-                    repo.remotes.origin.set_url(new_url)
+            # Configure the remote URL with the token
+            remote_url = f'https://{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
+            repo.git.remote('set-url', 'origin', remote_url)
             
-            # Pull before pushing to avoid conflicts
-            repo.git.pull('origin', 'main', '--no-rebase')
+            # Add changes
+            repo.git.add('clients.csv')
             
-            # Push changes
-            origin = repo.remote('origin')
-            origin.push()
-            
-            print("GitHub sync completed successfully")
+            # Only commit if there are changes
+            if repo.is_dirty() or len(repo.untracked_files) > 0:
+                repo.index.commit(commit_message)
+                
+                # Pull latest changes
+                repo.git.pull('origin', 'main', '--no-rebase')
+                
+                # Push changes
+                repo.git.push('origin', 'main')
+                
+                print("GitHub sync completed successfully")
+                return True
             return True
-        return True
+        else:
+            print("SECRET_TOKEN not found in Streamlit secrets")
+            return False
     except Exception as e:
         print(f"GitHub sync error: {str(e)}")
         print(traceback.format_exc())
