@@ -53,7 +53,7 @@ def load_clients_from_csv(file_name=FILE_NAME):
             df["booked_sessions"] = df["booked_sessions"].apply(
                 lambda x: eval(x) if pd.notna(x) and x != '[]' else []
             )
-            return {row['client_name']: row.to_dict() for _, row in df.iterrows()}
+            return {row['client_name']: row.dropna().to_dict() for _, row in df.iterrows()}
     except Exception as e:
         print(f"Error loading CSV: {str(e)}")
     return {}
@@ -125,7 +125,7 @@ st.header("Track Sessions")
 if st.session_state.clients:
     for client, data in st.session_state.clients.items():
         st.write(f"Client: {client}")
-        st.write(f"Email: {data['email']}")
+        st.write(f"Email: {data.get('email', 'N/A')}")
         st.write(f"Sessions Completed: {data['sessions_completed']}")
         st.write(f"Sessions Remaining: {data['sessions_remaining']}")
 
@@ -145,3 +145,20 @@ if st.session_state.clients:
         st.write("---")
 else:
     st.info("No clients available. Please add new clients.")
+
+# Session Booking Section
+st.header("Session Booking")
+
+if st.session_state.clients:
+    selected_client = st.selectbox("Select Client for Booking", list(st.session_state.clients.keys()))
+    booking_date = st.date_input("Select a Date for Booking")
+
+    if st.button("Book Session"):
+        if selected_client:
+            date_str = booking_date.strftime('%Y-%m-%d')
+            if date_str not in st.session_state.clients[selected_client]["booked_sessions"]:
+                st.session_state.clients[selected_client]["booked_sessions"].append(date_str)
+                save_clients_to_csv(st.session_state.clients)
+                st.success(f"Session booked for {selected_client} on {booking_date.strftime('%B %d, %Y')}")
+            else:
+                st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')}.")
