@@ -217,10 +217,11 @@ if st.session_state.clients:
             booked_sessions.sort()
             for session in booked_sessions:
                 try:
+                    # Try to parse the datetime string
                     session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-            session_str = session_datetime.strftime('%B %d, %Y at %I:%M %p')
-                    st.write(f"- {session_str}")
+                    st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
                 except ValueError:
+                    # If parsing fails, display the original string
                     st.write(f"- {session}")
         else:
             st.write("No upcoming sessions. Start booking now!")
