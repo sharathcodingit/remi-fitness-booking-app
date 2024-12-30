@@ -195,57 +195,6 @@ with st.form(key="client_form"):
         else:
             st.warning("Please provide both name and email")
 
-# Session Tracking Section
-st.header("Track Sessions")
-
-if st.session_state.clients:
-    try:
-        # Sort clients by name
-        sorted_clients = dict(sorted(st.session_state.clients.items()))
-        
-        for client, data in sorted_clients.items():
-            try:
-                with st.expander(f"Client: {client}"):
-                    # Handle each field with error checking
-                    email = data.get('email', 'N/A')
-                    sessions_completed = data.get('sessions_completed', 0)
-                    sessions_remaining = data.get('sessions_remaining', 0)
-                    
-                    st.write(f"Email: {email}")
-                    st.write(f"Sessions Completed: {sessions_completed}")
-                    st.write(f"Sessions Remaining: {sessions_remaining}")
-
-                    # Display booked sessions
-                    booked_sessions = data.get("booked_sessions", [])
-                    if not isinstance(booked_sessions, list):
-                        booked_sessions = []
-                        
-                    st.write("Upcoming Booked Sessions:")
-                    if booked_sessions:
-                        # Sort and validate dates
-                        valid_sessions = []
-                        for session in booked_sessions:
-                            try:
-                                datetime.strptime(session, '%Y-%m-%d')
-                                valid_sessions.append(session)
-                            except (ValueError, TypeError):
-                                print(f"Invalid date format for session: {session}")
-                                
-                        valid_sessions.sort()
-                        for session in valid_sessions:
-                            session_date = datetime.strptime(session, '%Y-%m-%d').strftime('%B %d, %Y')
-                            st.write(f"- {session_date}")
-                    else:
-                        st.write("No upcoming sessions. Start booking now!")
-            except Exception as client_error:
-                st.error(f"Error displaying client {client}: {str(client_error)}")
-                continue
-    except Exception as e:
-        st.error(f"Error in session tracking: {str(e)}")
-        print(f"Session tracking error details: {str(e)}")
-else:
-    st.info("No clients available. Please add new clients.")
-
 # Session Booking Section
 st.header("Session Booking")
 
