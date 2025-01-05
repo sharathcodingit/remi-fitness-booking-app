@@ -245,10 +245,20 @@ else:
 st.header("Update Client Sessions")
 
 if st.session_state.clients:
+    # Add search functionality
+    update_search_term = st.text_input("🔍 Search Client", key="update_search")
+    
+    # Filter and sort clients based on search
     sorted_client_names = sorted(st.session_state.clients.keys())
+    filtered_clients = [
+        client for client in sorted_client_names 
+        if update_search_term.lower() in client.lower()
+    ] if update_search_term else sorted_client_names
+
+    # Update the selectbox to use filtered clients
     update_client = st.selectbox(
         "Select Client to Update",
-        sorted_client_names,
+        filtered_clients,
         key="update_client"
     )
 
@@ -258,12 +268,11 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {client_data['sessions_completed']}")
         st.write(f"Sessions Remaining: {client_data['sessions_remaining']}")
 
-        # Add session search/filter functionality
+        # Rest of your existing code for displaying booked sessions
         booked_sessions = client_data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
         
         if booked_sessions:
-            # Convert strings to datetime objects for sorting and filtering
             valid_sessions = []
             current_datetime = datetime.now()
             
@@ -275,18 +284,14 @@ if st.session_state.clients:
                 except ValueError:
                     continue
             
-            # Sort sessions by datetime
             valid_sessions.sort(key=lambda x: x[0])
             
             if valid_sessions:
-                # Add session filter
                 session_search = st.text_input("🔍 Search Sessions (YYYY-MM-DD or MM-DD)", key="session_search")
                 
-                # Filter and display sessions
                 filtered_sessions = []
                 for session_datetime, session in valid_sessions:
                     if session_search:
-                        # Check if search term matches date in any format
                         date_str = session_datetime.strftime('%Y-%m-%d')
                         short_date = session_datetime.strftime('%m-%d')
                         if (session_search.lower() in date_str.lower() or 
@@ -298,8 +303,6 @@ if st.session_state.clients:
                 if filtered_sessions:
                     for session_datetime, _ in filtered_sessions:
                         st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
-                    
-                    # Add statistics for filtered sessions
                     st.write(f"Found {len(filtered_sessions)} session(s)")
                 else:
                     if session_search:
@@ -323,6 +326,8 @@ if st.session_state.clients:
                     st.info("No booked sessions to mark as completed.")
             else:
                 st.warning(f"{update_client} has no remaining sessions.")
+else:
+    st.info("No clients available. Please add clients first.")
 
 # Payment Reminder Section
 st.header("Payment Reminders")
