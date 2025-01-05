@@ -184,13 +184,38 @@ if st.session_state.clients:
             if booking_date < current_date:
                 st.error("Cannot book sessions for past dates.")
             else:
-                datetime_str = f"{booking_date.strftime('%Y-%m-%d')} {booking_time.strftime('%H:%M')}"
-                if datetime_str not in st.session_state.clients[selected_client]["booked_sessions"]:
+                # Convert booking time to datetime for comparison
+                booking_datetime = datetime.combine(booking_date, booking_time)
+                datetime_str = booking_datetime.strftime('%Y-%m-%d %H:%M')
+
+                # Check for any existing bookings on the same date/time across all clients
+                time_slot_available = True
+                conflicting_client = None
+
+                for client, data in st.session_state.clients.items():
+                    for booked_session in data['booked_sessions']:
+                        try:
+                            booked_datetime = datetime.strptime(booked_session, '%Y-%m-%d %H:%M')
+                            # Check if the booking is within the same hour
+                            time_difference = abs((booking_datetime - booked_datetime).total_seconds() / 3600)
+                            if time_difference < 1:  # Less than 1 hour difference
+                                time_slot_available = False
+                                conflicting_client = client
+                                break
+                        except ValueError:
+                            continue
+                    if not time_slot_available:
+                        break
+
+                if not time_slot_available:
+                    if conflicting_client == selected_client:
+                        st.warning(f"You already have a session booked on {booking_date.strftime('%B %d, %Y')} at {booking_time.strftime('%I:%M %p')}.")
+                    else:
+                        st.error(f"This time slot is already booked. Please select a different time.")
+                else:
                     st.session_state.clients[selected_client]["booked_sessions"].append(datetime_str)
                     save_clients_to_csv(st.session_state.clients)
                     st.success(f"Session booked for {selected_client} on {booking_date.strftime('%B %d, %Y')} at {booking_time.strftime('%I:%M %p')}")
-                else:
-                    st.warning(f"{selected_client} already has a session booked on {booking_date.strftime('%B %d, %Y')} at {booking_time.strftime('%I:%M %p')}.")
 else:
     st.info("No clients available. Please add clients first.")
 
