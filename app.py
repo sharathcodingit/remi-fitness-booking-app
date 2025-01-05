@@ -239,15 +239,26 @@ if st.session_state.clients:
         booked_sessions = client_data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
         if booked_sessions:
-            booked_sessions.sort()
+            # Convert strings to datetime objects for sorting
+            valid_sessions = []
+            current_datetime = datetime.now()
+            
             for session in booked_sessions:
                 try:
-                    # Try to parse the datetime string
                     session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                    st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
+                    if session_datetime >= current_datetime:
+                        valid_sessions.append((session_datetime, session))
                 except ValueError:
-                    # If parsing fails, display the original string
-                    st.write(f"- {session}")
+                    continue
+            
+            # Sort sessions by datetime
+            valid_sessions.sort(key=lambda x: x[0])
+            
+            if valid_sessions:
+                for session_datetime, session in valid_sessions:
+                    st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
+            else:
+                st.write("No upcoming sessions. All booked sessions are in the past.")
         else:
             st.write("No upcoming sessions. Start booking now!")
 
