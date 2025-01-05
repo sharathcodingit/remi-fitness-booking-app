@@ -181,20 +181,22 @@ def search_clients(search_term: str, client_list: list) -> list:
 st.header("Session Booking")
 
 if st.session_state.clients:
-    # Add search bar for booking section
-    all_clients = sorted(st.session_state.clients.keys())
-    search_term = st.text_input("🔍 Search Client", key="booking_search")
-    filtered_clients = search_clients(search_term, all_clients)
+    # Single search bar with proper styling
+    search_term = st.text_input("🔍 Search Client", key="booking_search", label_visibility="visible")
     
-    if not filtered_clients and search_term:
-        st.warning(f"No clients found matching '{search_term}'")
-        selected_client = None
-    else:
-        selected_client = st.selectbox(
-            "Select Client for Booking",
-            filtered_clients,
-            key="booking_client_select"
-        )
+    # Filter and sort clients
+    all_clients = sorted(st.session_state.clients.keys())
+    filtered_clients = [
+        client for client in all_clients 
+        if search_term.lower() in client.lower()
+    ] if search_term else all_clients
+
+    # Client selection with proper label
+    selected_client = st.selectbox(
+        "Select Client for Booking",
+        filtered_clients,
+        key="booking_client_select"
+    )
     booking_date = st.date_input("Select a Date for Booking")
     booking_time = st.time_input("Select Time for Booking")
 
