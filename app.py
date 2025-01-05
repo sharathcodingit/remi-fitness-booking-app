@@ -256,10 +256,12 @@ if st.session_state.clients:
         st.write(f"Sessions Completed: {client_data['sessions_completed']}")
         st.write(f"Sessions Remaining: {client_data['sessions_remaining']}")
 
+        # Add session search/filter functionality
         booked_sessions = client_data.get("booked_sessions", [])
         st.write("Upcoming Booked Sessions:")
+        
         if booked_sessions:
-            # Convert strings to datetime objects for sorting
+            # Convert strings to datetime objects for sorting and filtering
             valid_sessions = []
             current_datetime = datetime.now()
             
@@ -275,8 +277,33 @@ if st.session_state.clients:
             valid_sessions.sort(key=lambda x: x[0])
             
             if valid_sessions:
+                # Add session filter
+                session_search = st.text_input("🔍 Search Sessions (YYYY-MM-DD or MM-DD)", key="session_search")
+                
+                # Filter and display sessions
+                filtered_sessions = []
                 for session_datetime, session in valid_sessions:
-                    st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
+                    if session_search:
+                        # Check if search term matches date in any format
+                        date_str = session_datetime.strftime('%Y-%m-%d')
+                        short_date = session_datetime.strftime('%m-%d')
+                        if (session_search.lower() in date_str.lower() or 
+                            session_search.lower() in short_date.lower()):
+                            filtered_sessions.append((session_datetime, session))
+                    else:
+                        filtered_sessions.append((session_datetime, session))
+                
+                if filtered_sessions:
+                    for session_datetime, _ in filtered_sessions:
+                        st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
+                    
+                    # Add statistics for filtered sessions
+                    st.write(f"Found {len(filtered_sessions)} session(s)")
+                else:
+                    if session_search:
+                        st.info(f"No sessions found matching '{session_search}'")
+                    else:
+                        st.write("No upcoming sessions found")
             else:
                 st.write("No upcoming sessions. All booked sessions are in the past.")
         else:
