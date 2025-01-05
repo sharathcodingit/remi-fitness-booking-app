@@ -169,12 +169,32 @@ with st.form(key="client_form"):
         else:
             st.warning("Please provide both name and email")
 
+# Helper function for client search
+def search_clients(search_term: str, client_list: list) -> list:
+    """Filter clients based on search term"""
+    if not search_term:
+        return client_list
+    search_term = search_term.lower()
+    return [client for client in client_list if search_term in client.lower()]
+
 # Session Booking Section
 st.header("Session Booking")
 
 if st.session_state.clients:
-    sorted_client_names = sorted(st.session_state.clients.keys())
-    selected_client = st.selectbox("Select Client for Booking", sorted_client_names)
+    # Add search bar for booking section
+    all_clients = sorted(st.session_state.clients.keys())
+    search_term = st.text_input("🔍 Search Client", key="booking_search")
+    filtered_clients = search_clients(search_term, all_clients)
+    
+    if not filtered_clients and search_term:
+        st.warning(f"No clients found matching '{search_term}'")
+        selected_client = None
+    else:
+        selected_client = st.selectbox(
+            "Select Client for Booking",
+            filtered_clients,
+            key="booking_client_select"
+        )
     booking_date = st.date_input("Select a Date for Booking")
     booking_time = st.time_input("Select Time for Booking")
 
