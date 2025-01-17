@@ -169,14 +169,6 @@ with st.form(key="client_form"):
         else:
             st.warning("Please provide both name and email")
 
-# Helper function for client search
-def search_clients(search_term: str, client_list: list) -> list:
-    """Filter clients based on search term"""
-    if not search_term:
-        return client_list
-    search_term = search_term.lower()
-    return [client for client in client_list if search_term in client.lower()]
-
 # Session Booking Section
 st.header("Session Booking")
 
@@ -245,35 +237,14 @@ else:
 st.header("Update Client Sessions")
 
 if st.session_state.clients:
-    # Add search functionality just for clients
-    update_search_term = st.text_input("🔍 Search Client", key="update_search")
-    
     # Filter and sort clients based on search
     sorted_client_names = sorted(st.session_state.clients.keys())
-    filtered_clients = [
-        client for client in sorted_client_names 
-        if update_search_term.lower() in client.lower()
-    ] if update_search_term else sorted_client_names
-
-# Update Sessions for a Specific Client
-st.header("Update Client Sessions")
-
-if st.session_state.clients:
-    # Add search functionality just for clients
-    update_search_term = st.text_input("🔍 Search Client", key="client_update_search")  # Changed key name
     
-    # Filter and sort clients based on search
-    sorted_client_names = sorted(st.session_state.clients.keys())
-    filtered_clients = [
-        client for client in sorted_client_names 
-        if update_search_term.lower() in client.lower()
-    ] if update_search_term else sorted_client_names
-
     # Update the selectbox to use filtered clients
     update_client = st.selectbox(
         "Select Client to Update",
-        filtered_clients,
-        key="client_select_for_update"  # Changed key name
+        sorted_client_names,
+        key="client_select_for_update"
     )
 
     if update_client:
@@ -309,7 +280,7 @@ if st.session_state.clients:
         else:
             st.write("No upcoming sessions. Start booking now!")
 
-        if st.button("Mark Session as Completed", key="mark_session_completed"):  # Added unique key
+        if st.button("Mark Session as Completed", key="mark_session_completed"):
             if client_data['sessions_remaining'] > 0:
                 if booked_sessions:
                     completed_date = booked_sessions.pop(0)
