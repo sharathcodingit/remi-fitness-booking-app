@@ -309,3 +309,102 @@ if st.session_state.clients:
         st.success("No payment reminders needed at this time.")
 else:
     st.info("No clients to check for payment reminders.")
+
+# Export Feature Section
+st.header("Export Data")
+
+if st.session_state.clients:
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        export_type = st.radio(
+            "Select Export Type",
+            ["All Client Data", "Active Clients Only", "Sessions Summary"],
+            key="export_type"
+        )
+    
+    with col2:
+        if export_type == "All Client Data":
+            st.write("Exports complete client data including all sessions and booking history.")
+        elif export_type == "Active Clients Only":
+            st.write("Exports data for clients with remaining sessions only.")
+        else:
+            st.write("Exports a summary of all sessions (completed and upcoming).")
+    
+    if st.button("Generate Export"):
+        try:
+            current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            if export_type == "All Client Data":
+                # Prepare all client data
+                export_data = []
+                for client_name, data in st.session_state.clients.items():
+                    client_row = {
+                        'Client Name': client_name,
+                        'Email': data['email'],
+                        'Sessions Completed': data['sessions_completed'],
+                        'Sessions Remaining': data['sessions_remaining'],
+                        'Total Sessions': data['total_sessions'],
+                        'Booked Sessions': str(data['booked_sessions'])
+                    }
+                    export_data.append(client_row)
+                
+                df = pd.DataFrame(export_data)
+                filename = f"all_client_data_{current_datetime}.csv"
+                
+            elif export_type == "Active Clients Only":
+                # Prepare active client data
+                export_data = []
+                for client_name, data in st.session_state.clients.items():
+                    if data['sessions_remaining'] > 0:
+                        client_row = {
+                            'Client Name': client_name,
+                            'Email': data['email'],
+                            'Sessions Completed': data['sessions_completed'],
+                            'Sessions Remaining': data['sessions_remaining'],
+                            'Total Sessions': data['total_sessions'],
+                            'Upcoming Sessions': str([s for s in data['booked_sessions'] 
+                                                    if datetime.strptime(s, '%Y-%m-%d %H:%M') > datetime.now()])
+                        }
+                        export_data.append(client_row)
+                
+                df = pd.DataFrame(export_data)
+                filename = f"active_clients_{current_datetime}.csv"
+                
+            else:  # Sessions Summary
+                # Prepare sessions summary
+                export_data = []
+                for client_name, data in st.session_state.clients.items():
+                    # Process each booked session
+                    for session in data['booked_sessions']:
+                        try:
+                            session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                            session_row = {
+                                'Client Name': client_name,
+                                'Session Date': session_datetime.strftime('%Y-%m-%d'),
+                                'Session Time': session_datetime.strftime('%H:%M'),
+                                'Status': 'Upcoming' if session_datetime > datetime.now() else 'Past'
+                            }
+                            export_data.append(session_row)
+                        except ValueError:
+                            continue
+                
+                df = pd.DataFrame(export_data)
+                if not df.empty:
+                    df = df.sort_values(['Session Date', 'Session Time'])
+                filename = f"sessions_summary_{current_datetime}.csv"
+            
+            # Generate download link
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name=filename,
+                mime='text/csv',
+            )
+            st.success(f"Export generated successfully! Click the download button above to save the file.")
+            
+        except Exception as e:
+            st.error(f"Error generating export: {str(e)}")
+else:
+    st.info("No client data available to export.")
