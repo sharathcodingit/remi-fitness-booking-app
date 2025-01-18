@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import os
 from git import Repo
 import traceback
-import calendar
 
 # Constants
 FILE_NAME = "clients.csv"
@@ -17,6 +16,38 @@ if 'selected_date' not in st.session_state:
     st.session_state.selected_date = datetime.now()
 if 'clients' not in st.session_state:
     st.session_state.clients = {}
+if 'authenticated_client' not in st.session_state:
+    st.session_state.authenticated_client = None
+
+def sync_with_github(commit_message="Updated client data"):
+    """Function to sync changes with GitHub"""
+    try:
+        if 'SECRET_TOKEN' in st.secrets:
+            token = st.secrets['SECRET_TOKEN']
+            repo = Repo(REPO_PATH)
+            try:
+                remote_url = f'https://{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
+                repo.git.remote('set-url', 'origin', remote_url)
+                repo.git.add('--force', FILE_NAME)
+                
+                if repo.is_dirty(untracked_files=True):
+                    repo.index.commit(commit_message)
+                    repo.git.pull('--rebase', 'origin', 'main')
+                    repo.git.push('--force-with-lease', 'origin', 'main')
+                    return True
+                else:
+                    return True
+            except Exception as e:
+                print(f"Git operation error: {str(e)}")
+                repo.git.reset('--hard')
+                return False
+        else:
+            print("SECRET_TOKEN not found in Streamlit secrets")
+            return False
+    except Exception as e:
+        print(f"GitHub sync error: {str(e)}")
+        print(traceback.format_exc())
+        return False
 
 def load_clients_from_csv(file_name=FILE_NAME):
     """Function to load client data from CSV"""
@@ -58,177 +89,133 @@ def load_clients_from_csv(file_name=FILE_NAME):
         st.error(f"Error loading CSV: {str(e)}")
     return {}
 
-def save_clients_to_csv(clients, file_name=FILE_NAME):
-    """Function to save client data to CSV"""
-    try:
-        clients_copy = {}
-        for name, data in clients.items():
-            clients_copy[name] = data.copy()
-            clients_copy[name]['booked_sessions'] = str(data['booked_sessions'])
-        
-        df = pd.DataFrame.from_dict(clients_copy, orient='index')
-        df.reset_index(inplace=True)
-        df.rename(columns={'index': 'client_name'}, inplace=True)
-        
-        columns = ['client_name', 'email', 'sessions_completed', 'sessions_remaining', 
-                  'total_sessions', 'booked_sessions']
-        df = df[columns]
-        
-        df.to_csv(file_name, index=False)
-        st.success("Changes saved successfully!")
-        
-    except Exception as e:
-        st.error(f"Error saving data: {str(e)}")
-
-def display_calendar_view():
-    """Display the calendar view for booking sessions"""
-    st.header("Session Calendar")
+def display_client_booking():
+    """Display the client booking interface"""
+    st.title("Book Your Session")
     
-    # Calendar navigation
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col1:
-        if st.button("← Previous Week"):
-            st.session_state.selected_date -= timedelta(days=7)
-    with col2:
-        st.write(f"Week of {st.session_state.selected_date.strftime('%B %d, %Y')}")
-    with col3:
-        if st.button("Next Week →"):
-            st.session_state.selected_date += timedelta(days=7)
-    
-    # Get the start of the week
-    start_of_week = st.session_state.selected_date - timedelta(days=st.session_state.selected_date.weekday())
-    
-    # Create weekly calendar
-    week_days = []
-    for i in range(7):
-        current_date = start_of_week + timedelta(days=i)
-        week_days.append(current_date)
-    
-    # Display calendar grid
-    st.write("---")
-    cols = st.columns(7)
-    for i, day in enumerate(week_days):
-        with cols[i]:
-            st.write(day.strftime("%a\n%b %d"))
+    # Client Login
+    if not st.session_state.authenticated_client:
+        st.header("Client Login")
+        email = st.text_input("Enter your email")
+        
+        if email:
+            # Find client by email
+            client_found = False
+            for client_name, data in st.session_state.clients.items():
+                if data['email'].lower() == email.lower():
+                    st.session_state.authenticated_client = client_name
+                    client_found = True
+                    break
             
-            # Display time slots for each day
+            if not client_found:
+                st.error("Email not found. Please check your email or contact your trainer.")
+                return
+    
+    # Show booking interface for authenticated client
+    if st.session_state.authenticated_client:
+        client_data = st.session_state.clients[st.session_state.authenticated_client]
+        st.success(f"Welcome, {st.session_state.authenticated_client}!")
+        
+        # Show remaining sessions
+        sessions_remaining = client_data['sessions_remaining']
+        st.info(f"You have {sessions_remaining} sessions remaining")
+        
+        if sessions_remaining > 0:
+            st.header("Book a Session")
+            
+            # Date selection
+            min_date = datetime.now().date()
+            max_date = min_date + timedelta(days=30)
+            selected_date = st.date_input(
+                "Select Date",
+                min_value=min_date,
+                max_value=max_date,
+                value=min_date
+            )
+            
+            # Time selection
+            available_times = []
             for hour in range(9, 18):  # 9 AM to 5 PM
                 time_slot = f"{hour:02d}:00"
-                is_slot_booked = False
-                booked_client = None
                 
-                # Check if slot is booked
-                for client, data in st.session_state.clients.items():
+                # Check if slot is available
+                slot_datetime = datetime.combine(selected_date, datetime.strptime(time_slot, '%H:%M').time())
+                slot_is_available = True
+                
+                for _, data in st.session_state.clients.items():
                     for session in data['booked_sessions']:
-                        session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                        if (session_datetime.date() == day.date() and 
-                            session_datetime.strftime('%H:%M') == time_slot):
-                            is_slot_booked = True
-                            booked_client = client
+                        booked_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                        if abs((slot_datetime - booked_datetime).total_seconds()) < 3600:
+                            slot_is_available = False
                             break
                 
-                if is_slot_booked:
-                    st.write(f"🔴 {time_slot}\n{booked_client}")
-                else:
-                    if st.button(f"📅 {time_slot}", key=f"{day.date()}_{time_slot}"):
-                        book_session(day, time_slot)
-
-def book_session(date, time_slot):
-    """Book a session for a client"""
-    # Client selection
-    client_names = list(st.session_state.clients.keys())
-    if not client_names:
-        st.error("No clients available. Please add clients first.")
-        return
-    
-    selected_client = st.selectbox("Select Client", client_names)
-    
-    if selected_client:
-        client_data = st.session_state.clients[selected_client]
-        if client_data['sessions_remaining'] <= 0:
-            st.error(f"{selected_client} has no remaining sessions.")
-            return
-        
-        # Create datetime for the booking
-        booking_datetime = datetime.combine(date, datetime.strptime(time_slot, '%H:%M').time())
-        datetime_str = booking_datetime.strftime('%Y-%m-%d %H:%M')
-        
-        # Check for conflicts
-        for client, data in st.session_state.clients.items():
-            for session in data['booked_sessions']:
-                existing_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                if abs((booking_datetime - existing_datetime).total_seconds()) < 3600:
-                    st.error("This time slot is already booked.")
-                    return
-        
-        # Book the session
-        client_data['booked_sessions'].append(datetime_str)
-        save_clients_to_csv(st.session_state.clients)
-        st.success(f"Session booked for {selected_client} on {date.strftime('%B %d, %Y')} at {time_slot}")
-
-def display_client_management():
-    """Display the client management section"""
-    st.header("Client Management")
-    
-    # Add new client
-    with st.form("add_client_form"):
-        st.subheader("Add New Client")
-        new_client_name = st.text_input("Client Name")
-        new_client_email = st.text_input("Email")
-        new_client_sessions = st.number_input("Number of Sessions", min_value=1, value=12)
-        
-        if st.form_submit_button("Add Client"):
-            if new_client_name and new_client_email:
-                if new_client_name not in st.session_state.clients:
-                    st.session_state.clients[new_client_name] = {
-                        'email': new_client_email,
-                        'sessions_completed': 0,
-                        'sessions_remaining': new_client_sessions,
-                        'total_sessions': new_client_sessions,
-                        'booked_sessions': []
-                    }
-                    save_clients_to_csv(st.session_state.clients)
-                    st.success(f"Client {new_client_name} added successfully!")
-                else:
-                    st.error(f"Client {new_client_name} already exists!")
-            else:
-                st.error("Please provide both name and email")
-
-    # Display existing clients
-    st.subheader("Existing Clients")
-    for client_name, data in st.session_state.clients.items():
-        with st.expander(f"{client_name} - {data['sessions_remaining']} sessions remaining"):
-            st.write(f"Email: {data['email']}")
-            st.write(f"Sessions Completed: {data['sessions_completed']}")
-            st.write(f"Total Sessions: {data['total_sessions']}")
+                if slot_is_available:
+                    available_times.append(time_slot)
             
-            # Display upcoming sessions
-            if data['booked_sessions']:
-                st.write("Upcoming Sessions:")
-                for session in sorted(data['booked_sessions']):
-                    session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                    if session_datetime > datetime.now():
-                        st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
+            if available_times:
+                selected_time = st.selectbox(
+                    "Select Time",
+                    available_times,
+                    format_func=lambda x: f"{x} - {(datetime.strptime(x, '%H:%M') + timedelta(hours=1)).strftime('%H:%M')}"
+                )
+                
+                if st.button("Book Session"):
+                    booking_datetime = datetime.combine(selected_date, datetime.strptime(selected_time, '%H:%M').time())
+                    
+                    if booking_datetime < datetime.now():
+                        st.error("Cannot book sessions in the past!")
+                    else:
+                        client_data['booked_sessions'].append(booking_datetime.strftime('%Y-%m-%d %H:%M'))
+                        save_clients_to_csv(st.session_state.clients)
+                        st.success(f"Session booked for {selected_date.strftime('%B %d, %Y')} at {selected_time}")
+                        st.balloons()
+            else:
+                st.warning("No available time slots for the selected date. Please try another date.")
+            
+            # Show upcoming bookings
+            st.header("Your Upcoming Sessions")
+            upcoming_sessions = []
+            for session in client_data['booked_sessions']:
+                session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                if session_datetime > datetime.now():
+                    upcoming_sessions.append(session_datetime)
+            
+            if upcoming_sessions:
+                for session in sorted(upcoming_sessions):
+                    st.write(f"📅 {session.strftime('%B %d, %Y at %I:%M %p')}")
+            else:
+                st.info("No upcoming sessions")
+        else:
+            st.warning("You have no remaining sessions. Please contact your trainer to purchase more sessions.")
+        
+        # Logout button
+        if st.button("Logout"):
+            st.session_state.authenticated_client = None
+            st.experimental_rerun()
 
 def main():
-    st.title("Fitness Trainer App")
-    
-    # Navigation
-    st.sidebar.title("Navigation")
-    view = st.sidebar.radio("Go to", ['Calendar', 'Clients', 'Reports'])
+    st.set_page_config(page_title="Fitness Training App", page_icon="💪")
     
     # Load client data
     if not st.session_state.clients:
         st.session_state.clients = load_clients_from_csv()
     
-    # Display selected view
-    if view == 'Calendar':
-        display_calendar_view()
-    elif view == 'Clients':
-        display_client_management()
-    else:  # Reports
-        st.header("Reports")
-        # Add reporting functionality here
+    # Navigation
+    st.sidebar.title("Navigation")
+    if 'is_trainer' not in st.session_state:
+        st.session_state.is_trainer = st.sidebar.checkbox("I am the trainer")
+    
+    if st.session_state.is_trainer:
+        view = st.sidebar.radio("Go to", ['Calendar', 'Clients', 'Reports'])
         
+        if view == 'Calendar':
+            display_calendar_view()
+        elif view == 'Clients':
+            display_client_management()
+        else:  # Reports
+            display_reports()
+    else:
+        display_client_booking()
+
 if __name__ == "__main__":
     main()
