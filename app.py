@@ -1,410 +1,132 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import os
-from git import Repo
-import traceback
+import React, { useState } from 'react';
+import { Calendar, Clock } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-# Constants
-FILE_NAME = "clients.csv"
-REPO_PATH = os.path.dirname(os.path.abspath(__file__))
+const SessionCalendar = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState('');
+  const [selectedClient, setSelectedClient] = useState('');
 
-def sync_with_github(commit_message="Updated client data"):
-    """Function to sync changes with GitHub"""
-    try:
-        if 'SECRET_TOKEN' in st.secrets:
-            token = st.secrets['SECRET_TOKEN']
-            repo = Repo(REPO_PATH)
-            
-            try:
-                remote_url = f'https://{token}@github.com/sharathcodingit/remi-fitness-booking-app.git'
-                repo.git.remote('set-url', 'origin', remote_url)
-                repo.git.add('--force', FILE_NAME)
-                
-                if repo.is_dirty(untracked_files=True):
-                    repo.index.commit(commit_message)
-                    repo.git.pull('--rebase', 'origin', 'main')
-                    repo.git.push('--force-with-lease', 'origin', 'main')
-                    print("GitHub sync completed successfully")
-                    return True
-                else:
-                    print("No changes to commit")
-                    return True
-                    
-            except Exception as e:
-                print(f"Git operation error: {str(e)}")
-                repo.git.reset('--hard')
-                return False
-                
-        else:
-            print("SECRET_TOKEN not found in Streamlit secrets")
-            return False
-            
-    except Exception as e:
-        print(f"GitHub sync error: {str(e)}")
-        print(traceback.format_exc())
-        return False
+  // Mock data - replace with your actual data
+  const clients = [
+    { id: 1, name: 'John Doe', sessionsRemaining: 5 },
+    { id: 2, name: 'Jane Smith', sessionsRemaining: 3 },
+  ];
 
-def load_clients_from_csv(file_name=FILE_NAME):
-    """Function to load client data from CSV with robust error handling"""
-    try:
-        if os.path.exists(file_name):
-            df = pd.read_csv(file_name, dtype=str)
-            clients_dict = {}
-            
-            required_columns = ['client_name', 'email', 'sessions_completed', 
-                              'sessions_remaining', 'total_sessions', 'booked_sessions']
-            
-            if not all(col in df.columns for col in required_columns):
-                print(f"Missing required columns. Found columns: {df.columns.tolist()}")
-                return {}
-            
-            for _, row in df.iterrows():
-                try:
-                    client_name = row['client_name'].strip()
-                    if not client_name:
-                        continue
-                        
-                    sessions_completed = int(float(row['sessions_completed'])) if pd.notna(row['sessions_completed']) else 0
-                    sessions_remaining = int(float(row['sessions_remaining'])) if pd.notna(row['sessions_remaining']) else 0
-                    total_sessions = int(float(row['total_sessions'])) if pd.notna(row['total_sessions']) else 0
-                    
-                    try:
-                        booked_sessions = eval(row['booked_sessions']) if pd.notna(row['booked_sessions']) and row['booked_sessions'].strip() not in ('[]', '') else []
-                        if not isinstance(booked_sessions, list):
-                            booked_sessions = []
-                    except:
-                        booked_sessions = []
-                    
-                    clients_dict[client_name] = {
-                        'email': row['email'].strip() if pd.notna(row['email']) else '',
-                        'sessions_completed': sessions_completed,
-                        'sessions_remaining': sessions_remaining,
-                        'total_sessions': total_sessions,
-                        'booked_sessions': booked_sessions
-                    }
-                except Exception as row_error:
-                    print(f"Error processing row: {row}\nError: {str(row_error)}")
-                    continue
-                    
-            return clients_dict
-    except Exception as e:
-        print(f"Error loading CSV: {str(e)}")
-        if 'df' in locals():
-            print(f"DataFrame head:\n{df.head()}")
-            print(f"DataFrame columns: {df.columns.tolist()}")
-    return {}
+  // Generate available time slots (9 AM to 5 PM)
+  const timeSlots = Array.from({ length: 9 }, (_, i) => {
+    const hour = i + 9;
+    return `${hour.toString().padStart(2, '0')}:00`;
+  });
 
-def save_clients_to_csv(clients, file_name=FILE_NAME):
-    """Function to save client data to CSV and sync with GitHub"""
-    try:
-        clients_copy = {}
-        for name, data in clients.items():
-            clients_copy[name] = data.copy()
-            clients_copy[name]['booked_sessions'] = str(data['booked_sessions'])
-        
-        df = pd.DataFrame.from_dict(clients_copy, orient='index')
-        df.reset_index(inplace=True)
-        df.rename(columns={'index': 'client_name'}, inplace=True)
-        
-        columns = ['client_name', 'email', 'sessions_completed', 'sessions_remaining', 
-                  'total_sessions', 'booked_sessions']
-        df = df[columns]
-        
-        temp_file = file_name + '.tmp'
-        df.to_csv(temp_file, index=False)
-        os.replace(temp_file, file_name)
-        
-        sync_success = sync_with_github()
-        
-        if not sync_success:
-            print("First sync attempt failed, retrying...")
-            sync_success = sync_with_github()
-        
-        if sync_success:
-            st.success("Changes saved and synced successfully!")
-        else:
-            st.warning("Changes saved locally but GitHub sync failed. Please commit manually.")
-            
-    except Exception as e:
-        st.error(f"Error saving data: {str(e)}")
-        print(f"Error details: {str(e)}")
-        try:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-        except:
-            pass
-
-# Initialize clients in session state
-if "clients" not in st.session_state:
-    st.session_state.clients = load_clients_from_csv()
-
-# App title
-st.title("Fitness Trainer App")
-st.write("Welcome! Use this app to manage client sessions, bookings, and payments.")
-
-# Client Onboarding Section
-st.header("Add a New Client")
-
-with st.form(key="client_form"):
-    name = st.text_input("Client Name")
-    email = st.text_input("Email Address")
-    sessions_booked = st.number_input("Number of Sessions Booked", min_value=0, value=12)
-    submit_button = st.form_submit_button("Add Client")
-
-    if submit_button:
-        if name and email:
-            if name not in st.session_state.clients:
-                st.session_state.clients[name] = {
-                    "email": email,
-                    "sessions_completed": 0,
-                    "sessions_remaining": sessions_booked,
-                    "total_sessions": sessions_booked,
-                    "booked_sessions": [],
-                }
-                save_clients_to_csv(st.session_state.clients)
-                st.success(f"Client {name} added successfully!")
-            else:
-                st.warning(f"Client {name} already exists!")
-        else:
-            st.warning("Please provide both name and email")
-
-# Session Booking Section
-st.header("Session Booking")
-
-if st.session_state.clients:
-    # Single search bar with proper styling
-    search_term = st.text_input("🔍 Search Client", key="booking_search", label_visibility="visible")
+  // Get dates for the current week
+  const getDatesForWeek = () => {
+    const dates = [];
+    const curr = new Date();
+    const first = curr.getDate() - curr.getDay();
     
-    # Filter and sort clients
-    all_clients = sorted(st.session_state.clients.keys())
-    filtered_clients = [
-        client for client in all_clients 
-        if search_term.lower() in client.lower()
-    ] if search_term else all_clients
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(curr.setDate(first + i));
+      dates.push(date);
+    }
+    return dates;
+  };
 
-    # Client selection with proper label
-    selected_client = st.selectbox(
-        "Select Client for Booking",
-        filtered_clients,
-        key="booking_client_select"
-    )
-    booking_date = st.date_input("Select a Date for Booking")
-    booking_time = st.time_input("Select Time for Booking")
+  return (
+    <Card className="w-full max-w-4xl">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Session Booking Calendar
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* Client Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-2">Select Client</label>
+          <select 
+            className="w-full p-2 border rounded-md"
+            value={selectedClient}
+            onChange={(e) => setSelectedClient(e.target.value)}
+          >
+            <option value="">Select a client...</option>
+            {clients.map(client => (
+              <option key={client.id} value={client.id}>
+                {client.name} ({client.sessionsRemaining} sessions remaining)
+              </option>
+            ))}
+          </select>
+        </div>
 
-    if st.button("Book Session"):
-        if selected_client:
-            current_date = datetime.now().date()
-            if booking_date < current_date:
-                st.error("Cannot book sessions for past dates.")
-            else:
-                # Convert booking time to datetime for comparison
-                booking_datetime = datetime.combine(booking_date, booking_time)
-                datetime_str = booking_datetime.strftime('%Y-%m-%d %H:%M')
+        {/* Weekly Calendar */}
+        <div className="grid grid-cols-7 gap-2 mb-6">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="text-center font-medium p-2 bg-gray-100 rounded">
+              {day}
+            </div>
+          ))}
+          {getDatesForWeek().map((date, index) => (
+            <button
+              key={index}
+              onClick={() => setSelectedDate(date)}
+              className={`p-2 text-center rounded hover:bg-blue-50 ${
+                selectedDate.toDateString() === date.toDateString() 
+                  ? 'bg-blue-100 font-medium' 
+                  : ''
+              }`}
+            >
+              {date.getDate()}
+            </button>
+          ))}
+        </div>
 
-                # Check for any existing bookings on the same date/time across all clients
-                time_slot_available = True
-                conflicting_client = None
+        {/* Time Slots */}
+        <div className="mb-6">
+          <h3 className="flex items-center gap-2 mb-3 font-medium">
+            <Clock className="h-4 w-4" />
+            Available Time Slots
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            {timeSlots.map(time => (
+              <button
+                key={time}
+                onClick={() => setSelectedTime(time)}
+                className={`p-2 text-center rounded border ${
+                  selectedTime === time 
+                    ? 'bg-blue-100 border-blue-300' 
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                {time}
+              </button>
+            ))}
+          </div>
+        </div>
 
-                for client, data in st.session_state.clients.items():
-                    for booked_session in data['booked_sessions']:
-                        try:
-                            booked_datetime = datetime.strptime(booked_session, '%Y-%m-%d %H:%M')
-                            # Check if the booking is within the same hour
-                            time_difference = abs((booking_datetime - booked_datetime).total_seconds() / 3600)
-                            if time_difference < 1:  # Less than 1 hour difference
-                                time_slot_available = False
-                                conflicting_client = client
-                                break
-                        except ValueError:
-                            continue
-                    if not time_slot_available:
-                        break
+        {/* Booking Summary */}
+        {selectedClient && selectedDate && selectedTime && (
+          <Alert>
+            <AlertDescription>
+              Selected booking: {selectedDate.toLocaleDateString()} at {selectedTime}
+            </AlertDescription>
+          </Alert>
+        )}
 
-                if not time_slot_available:
-                    if conflicting_client == selected_client:
-                        st.warning(f"You already have a session booked on {booking_date.strftime('%B %d, %Y')} at {booking_time.strftime('%I:%M %p')}.")
-                    else:
-                        st.error(f"This time slot is already booked. Please select a different time.")
-                else:
-                    st.session_state.clients[selected_client]["booked_sessions"].append(datetime_str)
-                    save_clients_to_csv(st.session_state.clients)
-                    st.success(f"Session booked for {selected_client} on {booking_date.strftime('%B %d, %Y')} at {booking_time.strftime('%I:%M %p')}")
-else:
-    st.info("No clients available. Please add clients first.")
+        {/* Book Button */}
+        <button
+          className={`w-full p-3 rounded-md text-white mt-4 ${
+            selectedClient && selectedDate && selectedTime
+              ? 'bg-blue-600 hover:bg-blue-700'
+              : 'bg-gray-300 cursor-not-allowed'
+          }`}
+          disabled={!selectedClient || !selectedDate || !selectedTime}
+        >
+          Book Session
+        </button>
+      </CardContent>
+    </Card>
+  );
+};
 
-# Update Sessions for a Specific Client
-st.header("Update Client Sessions")
-
-if st.session_state.clients:
-    # Filter and sort clients based on search
-    sorted_client_names = sorted(st.session_state.clients.keys())
-    
-    # Update the selectbox to use filtered clients
-    update_client = st.selectbox(
-        "Select Client to Update",
-        sorted_client_names,
-        key="client_select_for_update"
-    )
-
-    if update_client:
-        client_data = st.session_state.clients[update_client]
-        st.write(f"Client: {update_client}")
-        st.write(f"Sessions Completed: {client_data['sessions_completed']}")
-        st.write(f"Sessions Remaining: {client_data['sessions_remaining']}")
-
-        # Display booked sessions without search functionality
-        booked_sessions = client_data.get("booked_sessions", [])
-        st.write("Upcoming Booked Sessions:")
-        
-        if booked_sessions:
-            valid_sessions = []
-            current_datetime = datetime.now()
-            
-            for session in booked_sessions:
-                try:
-                    session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                    if session_datetime >= current_datetime:
-                        valid_sessions.append((session_datetime, session))
-                except ValueError:
-                    continue
-            
-            valid_sessions.sort(key=lambda x: x[0])
-            
-            if valid_sessions:
-                for session_datetime, _ in valid_sessions:
-                    st.write(f"- {session_datetime.strftime('%B %d, %Y at %I:%M %p')}")
-                st.write(f"Found {len(valid_sessions)} session(s)")
-            else:
-                st.write("No upcoming sessions found")
-        else:
-            st.write("No upcoming sessions. Start booking now!")
-
-        if st.button("Mark Session as Completed", key="mark_session_completed"):
-            if client_data['sessions_remaining'] > 0:
-                if booked_sessions:
-                    completed_date = booked_sessions.pop(0)
-                    client_data["sessions_completed"] += 1
-                    client_data["sessions_remaining"] -= 1
-                    save_clients_to_csv(st.session_state.clients)
-                    st.success(f"Session marked as completed!")
-                else:
-                    st.info("No booked sessions to mark as completed.")
-            else:
-                st.warning(f"{update_client} has no remaining sessions.")
-else:
-    st.info("No clients available. Please add clients first.")
-
-# Payment Reminder Section
-st.header("Payment Reminders")
-
-if st.session_state.clients:
-    has_reminders = False
-    for client, data in sorted(st.session_state.clients.items()):
-        if data["sessions_remaining"] == 0:
-            has_reminders = True
-            st.warning(f"Payment Reminder: {client} has completed all sessions. Please request payment.")
-    
-    if not has_reminders:
-        st.success("No payment reminders needed at this time.")
-else:
-    st.info("No clients to check for payment reminders.")
-
-# Export Feature Section
-st.header("Export Data")
-
-if st.session_state.clients:
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        export_type = st.radio(
-            "Select Export Type",
-            ["All Client Data", "Active Clients Only", "Sessions Summary"],
-            key="export_type"
-        )
-    
-    with col2:
-        if export_type == "All Client Data":
-            st.write("Exports complete client data including all sessions and booking history.")
-        elif export_type == "Active Clients Only":
-            st.write("Exports data for clients with remaining sessions only.")
-        else:
-            st.write("Exports a summary of all sessions (completed and upcoming).")
-    
-    if st.button("Generate Export"):
-        try:
-            current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            if export_type == "All Client Data":
-                # Prepare all client data
-                export_data = []
-                for client_name, data in st.session_state.clients.items():
-                    client_row = {
-                        'Client Name': client_name,
-                        'Email': data['email'],
-                        'Sessions Completed': data['sessions_completed'],
-                        'Sessions Remaining': data['sessions_remaining'],
-                        'Total Sessions': data['total_sessions'],
-                        'Booked Sessions': str(data['booked_sessions'])
-                    }
-                    export_data.append(client_row)
-                
-                df = pd.DataFrame(export_data)
-                filename = f"all_client_data_{current_datetime}.csv"
-                
-            elif export_type == "Active Clients Only":
-                # Prepare active client data
-                export_data = []
-                for client_name, data in st.session_state.clients.items():
-                    if data['sessions_remaining'] > 0:
-                        client_row = {
-                            'Client Name': client_name,
-                            'Email': data['email'],
-                            'Sessions Completed': data['sessions_completed'],
-                            'Sessions Remaining': data['sessions_remaining'],
-                            'Total Sessions': data['total_sessions'],
-                            'Upcoming Sessions': str([s for s in data['booked_sessions'] 
-                                                    if datetime.strptime(s, '%Y-%m-%d %H:%M') > datetime.now()])
-                        }
-                        export_data.append(client_row)
-                
-                df = pd.DataFrame(export_data)
-                filename = f"active_clients_{current_datetime}.csv"
-                
-            else:  # Sessions Summary
-                # Prepare sessions summary
-                export_data = []
-                for client_name, data in st.session_state.clients.items():
-                    # Process each booked session
-                    for session in data['booked_sessions']:
-                        try:
-                            session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                            session_row = {
-                                'Client Name': client_name,
-                                'Session Date': session_datetime.strftime('%Y-%m-%d'),
-                                'Session Time': session_datetime.strftime('%H:%M'),
-                                'Status': 'Upcoming' if session_datetime > datetime.now() else 'Past'
-                            }
-                            export_data.append(session_row)
-                        except ValueError:
-                            continue
-                
-                df = pd.DataFrame(export_data)
-                if not df.empty:
-                    df = df.sort_values(['Session Date', 'Session Time'])
-                filename = f"sessions_summary_{current_datetime}.csv"
-            
-            # Generate download link
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download CSV",
-                data=csv,
-                file_name=filename,
-                mime='text/csv',
-            )
-            st.success(f"Export generated successfully! Click the download button above to save the file.")
-            
-        except Exception as e:
-            st.error(f"Error generating export: {str(e)}")
-else:
-    st.info("No client data available to export.")
+export default SessionCalendar;
