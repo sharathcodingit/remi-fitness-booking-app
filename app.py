@@ -218,4 +218,155 @@ def main():
         display_client_booking()
 
 if __name__ == "__main__":
+
+    def display_calendar_view():
+    """Display the calendar view for the trainer"""
+    st.header("Session Calendar")
+    
+    # Calendar navigation
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col1:
+        if st.button("← Previous Week"):
+            st.session_state.selected_date -= timedelta(days=7)
+    with col2:
+        st.write(f"Week of {st.session_state.selected_date.strftime('%B %d, %Y')}")
+    with col3:
+        if st.button("Next Week →"):
+            st.session_state.selected_date += timedelta(days=7)
+    
+    # Get the start of the week
+    start_of_week = st.session_state.selected_date - timedelta(days=st.session_state.selected_date.weekday())
+    
+    # Create weekly calendar
+    week_days = []
+    for i in range(7):
+        current_date = start_of_week + timedelta(days=i)
+        week_days.append(current_date)
+    
+    # Display calendar grid
+    cols = st.columns(7)
+    for i, day in enumerate(week_days):
+        with cols[i]:
+            st.write(f"**{day.strftime('%a %b %d')}**")
+            
+            # Display booked sessions for this day
+            for client_name, client_data in st.session_state.clients.items():
+                for session in client_data['booked_sessions']:
+                    session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                    if session_datetime.date() == day.date():
+                        st.info(f"{session_datetime.strftime('%I:%M %p')}\n{client_name}")
+
+def display_client_management():
+    """Display the client management interface"""
+    st.header("Client Management")
+    
+    # Add new client form
+    with st.form("add_client_form"):
+        st.subheader("Add New Client")
+        new_client_name = st.text_input("Client Name")
+        new_client_email = st.text_input("Email")
+        new_client_sessions = st.number_input("Number of Sessions", min_value=1, value=12)
+        
+        if st.form_submit_button("Add Client"):
+            if new_client_name and new_client_email:
+                if new_client_name not in st.session_state.clients:
+                    st.session_state.clients[new_client_name] = {
+                        'email': new_client_email,
+                        'sessions_completed': 0,
+                        'sessions_remaining': new_client_sessions,
+                        'total_sessions': new_client_sessions,
+                        'booked_sessions': []
+                    }
+                    save_clients_to_csv(st.session_state.clients)
+                    st.success(f"Client {new_client_name} added successfully!")
+                else:
+                    st.error(f"Client {new_client_name} already exists!")
+            else:
+                st.error("Please provide both name and email")
+
+    # Manage existing clients
+    st.subheader("Manage Existing Clients")
+    for client_name, data in st.session_state.clients.items():
+        with st.expander(f"{client_name} - {data['sessions_remaining']} sessions remaining"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write(f"Email: {data['email']}")
+                st.write(f"Sessions Completed: {data['sessions_completed']}")
+                st.write(f"Total Sessions: {data['total_sessions']}")
+                
+                if st.button(f"Mark Session Complete for {client_name}", key=f"complete_{client_name}"):
+                    if data['sessions_remaining'] > 0:
+                        data['sessions_completed'] += 1
+                        data['sessions_remaining'] -= 1
+                        save_clients_to_csv(st.session_state.clients)
+                        st.success("Session marked as completed!")
+                    else:
+                        st.error("No remaining sessions!")
+            
+            with col2:
+                st.write("Upcoming Sessions:")
+                upcoming = []
+                for session in data['booked_sessions']:
+                    session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                    if session_datetime > datetime.now():
+                        upcoming.append(session_datetime)
+                
+                if upcoming:
+                    for session in sorted(upcoming):
+                        st.write(f"- {session.strftime('%B %d, %Y at %I:%M %p')}")
+                else:
+                    st.write("No upcoming sessions")
+
+def display_reports():
+    """Display the reports interface"""
+    st.header("Reports")
+    
+    # Summary statistics
+    st.subheader("Summary Statistics")
+    total_clients = len(st.session_state.clients)
+    total_sessions = sum(client['sessions_completed'] for client in st.session_state.clients.values())
+    active_clients = sum(1 for client in st.session_state.clients.values() if client['sessions_remaining'] > 0)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Clients", total_clients)
+    with col2:
+        st.metric("Active Clients", active_clients)
+    with col3:
+        st.metric("Total Sessions Completed", total_sessions)
+    
+    # Sessions by client chart
+    st.subheader("Sessions by Client")
+    sessions_data = {
+        client_name: {
+            'completed': data['sessions_completed'],
+            'remaining': data['sessions_remaining']
+        }
+        for client_name, data in st.session_state.clients.items()
+    }
+    
+    # Convert to DataFrame for display
+    df = pd.DataFrame([
+        {
+            'Client': name,
+            'Completed Sessions': data['completed'],
+            'Remaining Sessions': data['remaining']
+        }
+        for name, data in sessions_data.items()
+    ])
+    
+    st.write(df)
+    
+    # Export options
+    st.subheader("Export Data")
+    if st.button("Export to CSV"):
+        csv = df.to_csv(index=False)
+        st.download_button(
+            "Download CSV",
+            csv,
+            "fitness_trainer_report.csv",
+            "text/csv",
+            key='download-csv'
+        )
     main()
