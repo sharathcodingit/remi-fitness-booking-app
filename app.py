@@ -269,6 +269,11 @@ def display_client_booking():
     """Display the client booking interface"""
     st.title("Book Your Session")
     
+    # Check if we have any clients
+    if not st.session_state.clients:
+        st.warning("No clients registered yet. Please contact your trainer.")
+        return
+    
     # Client Login
     if not st.session_state.authenticated_client:
         st.header("Client Login")
@@ -288,7 +293,7 @@ def display_client_booking():
                 return
     
     # Show booking interface for authenticated client
-    if st.session_state.authenticated_client:
+    if st.session_state.authenticated_client and st.session_state.authenticated_client in st.session_state.clients:
         client_data = st.session_state.clients[st.session_state.authenticated_client]
         st.success(f"Welcome, {st.session_state.authenticated_client}!")
         
@@ -320,10 +325,13 @@ def display_client_booking():
                 
                 for _, data in st.session_state.clients.items():
                     for session in data['booked_sessions']:
-                        booked_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                        if abs((slot_datetime - booked_datetime).total_seconds()) < 3600:
-                            slot_is_available = False
-                            break
+                        try:
+                            booked_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                            if abs((slot_datetime - booked_datetime).total_seconds()) < 3600:
+                                slot_is_available = False
+                                break
+                        except ValueError:
+                            continue
                 
                 if slot_is_available:
                     available_times.append(time_slot)
@@ -352,9 +360,12 @@ def display_client_booking():
             st.header("Your Upcoming Sessions")
             upcoming_sessions = []
             for session in client_data['booked_sessions']:
-                session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
-                if session_datetime > datetime.now():
-                    upcoming_sessions.append(session_datetime)
+                try:
+                    session_datetime = datetime.strptime(session, '%Y-%m-%d %H:%M')
+                    if session_datetime > datetime.now():
+                        upcoming_sessions.append(session_datetime)
+                except ValueError:
+                    continue
             
             if upcoming_sessions:
                 for session in sorted(upcoming_sessions):
@@ -369,6 +380,10 @@ def display_client_booking():
         if st.button("Logout"):
             st.session_state.authenticated_client = None
             st.experimental_rerun()
+    else:
+        # If somehow the authentication state is invalid, reset it
+        st.session_state.authenticated_client = None
+        st.experimental_rerun()
 
 def main():
     st.set_page_config(page_title="Fitness Training App", page_icon="💪")
