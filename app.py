@@ -265,32 +265,6 @@ def display_reports():
             key='download-csv'
         )
 
-def main():
-    st.set_page_config(page_title="Fitness Training App", page_icon="💪")
-    
-    # Load client data
-    if not st.session_state.clients:
-        st.session_state.clients = load_clients_from_csv()
-    
-    # Navigation
-    st.sidebar.title("Navigation")
-    st.session_state.is_trainer = st.sidebar.checkbox("I am the trainer")
-    
-    if st.session_state.is_trainer:
-        view = st.sidebar.radio("Go to", ['Calendar', 'Clients', 'Reports'])
-        
-        if view == 'Calendar':
-            display_calendar_view()
-        elif view == 'Clients':
-            display_client_management()
-        else:  # Reports
-            display_reports()
-    else:
-        display_client_booking()
-
-if __name__ == "__main__":
-    main()
-
 def display_client_booking():
     """Display the client booking interface"""
     st.title("Book Your Session")
@@ -395,3 +369,29 @@ def display_client_booking():
         if st.button("Logout"):
             st.session_state.authenticated_client = None
             st.experimental_rerun()
+
+def main():
+    st.set_page_config(page_title="Fitness Training App", page_icon="💪")
+    
+    # Load client data
+    if not st.session_state.clients:
+        st.session_state.clients = load_clients_from_csv()
+    
+    # Navigation
+    st.sidebar.title("Navigation")
+    st.session_state.is_trainer = st.sidebar.checkbox("I am the trainer")
+    
+    if st.session_state.is_trainer:
+        view = st.sidebar.radio("Go to", ['Calendar', 'Clients', 'Reports'])
+        
+        if view == 'Calendar':
+            display_calendar_view()
+        elif view == 'Clients':
+            display_client_management()
+        else:  # Reports
+            display_reports()
+    else:
+        display_client_booking()
+
+if __name__ == "__main__":
+    main()
